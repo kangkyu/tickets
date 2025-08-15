@@ -678,23 +678,24 @@ applications:
             - echo "node_modules contents:"
             - ls -la node_modules/
             - echo "Checking .bin directory:"
-            - ls -la node_modules/.bin/ || echo "No .bin directory"
+            - "ls -la node_modules/.bin/ || echo 'No .bin directory'"
             - echo "Looking for vite executable:"
-            - which vite
+            - "which vite || echo 'vite not found in PATH (expected)'"
             - echo "Checking if vite package exists:"
-            - ls -la node_modules/vite/ || echo "vite package not found"
+            - "ls -la node_modules/vite/ || echo 'vite package not found'"
             - echo "Checking package.json scripts:"
             - npm run
             - echo "Trying to find vite binary:"
-            - find node_modules -name "vite" -type f
+            - "find node_modules -name 'vite' -type f"
             - echo "Adding node_modules/.bin to PATH:"
-            - export PATH="$PWD/node_modules/.bin:$PATH"
+            - "export PATH='$PWD/node_modules/.bin:$PATH'"
             - echo "New PATH:"
             - echo $PATH
-            - echo "Now looking for vite:"
-            - which vite
+            - echo "Now looking for vite (should work):"
+            - "which vite || echo 'vite still not found after PATH export'"
         build:
           commands:
+            - "export PATH='$PWD/node_modules/.bin:$PATH'"
             - npm run build
       artifacts:
         baseDirectory: dist
