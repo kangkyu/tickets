@@ -71,6 +71,12 @@ variable "lightspark_node_id" {
   sensitive   = true
 }
 
+variable "main_branch_name" {
+  description = "Main branch name (e.g., master, main)"
+  type        = string
+  default     = "master"
+}
+
 variable "database_name" {
   description = "Database name"
   type        = string
@@ -700,7 +706,7 @@ resource "aws_amplify_app" "frontend" {
 
   # Enable auto branch creation from GitHub
   enable_auto_branch_creation   = true
-  auto_branch_creation_patterns = ["main", "develop"]
+  auto_branch_creation_patterns = [var.main_branch_name, "develop"]
 
   auto_branch_creation_config {
     enable_auto_build = true
@@ -715,7 +721,7 @@ resource "aws_amplify_app" "frontend" {
 # Amplify Branch
 resource "aws_amplify_branch" "main" {
   app_id      = aws_amplify_app.frontend.id
-  branch_name = "main"
+  branch_name = var.main_branch_name
 
   enable_auto_build = true
 
