@@ -673,13 +673,10 @@ applications:
           commands:
             - npm ci
             - echo "Dependencies installed, checking node_modules:"
-            - echo "Current directory: $(pwd)"
-            - echo "node_modules contents:"
-            - ls -la node_modules/ || echo "node_modules not found"
-            - echo "Looking for vite executable:"
-            - which vite || echo "vite not in PATH"
-            - echo "Checking package.json scripts:"
-            - npm run || echo "No scripts found"
+            - "echo 'Current directory:' && pwd"
+            - "echo 'node_modules contents:' && ls -la node_modules/"
+            - "echo 'Looking for vite:' && which vite"
+            - "echo 'Scripts:' && npm run"
         build:
           commands:
             - npm run build
