@@ -2,8 +2,13 @@
 /**/.DS_Store
 
 # Terraform file
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
 .terraform/
-terraform.tfstate*
+.terraform.lock.hcl
+.terraform.tfstate.lock.info
+terraform.tfvars
 *.tfvars
 
 .terraform.tfstate.lock.info
