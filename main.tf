@@ -668,6 +668,7 @@ version: 1
 applications:
   - appRoot: frontend
     frontend:
+      buildPath: /
       phases:
         preBuild:
           commands:
