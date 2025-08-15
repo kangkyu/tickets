@@ -707,7 +707,7 @@ resource "aws_amplify_branch" "main" {
 
   # Environment variables specific to this branch
   environment_variables = {
-    VITE_API_BASE_URL = "https://${aws_lb.main.dns_name}/api"
+    VITE_API_BASE_URL = "http://${aws_lb.main.dns_name}/api"
     NODE_ENV          = "production"
   }
 
