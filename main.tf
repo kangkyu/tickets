@@ -671,7 +671,7 @@ applications:
       phases:
         preBuild:
           commands:
-            - npm ci
+            - npm ci --include=dev
             - echo "Dependencies installed, checking node_modules:"
             - "echo 'Current directory:' && pwd"
             - "echo 'node_modules contents:' && ls -la node_modules/"
