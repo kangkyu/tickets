@@ -1,238 +1,159 @@
-import { useState, useMemo } from 'react'
-import { Search, Filter, Calendar, MapPin, DollarSign } from 'lucide-react'
-import { useEvents } from '../hooks/useEvents'
+import { useState, useEffect } from 'react'
+import { Search, Calendar, DollarSign } from 'lucide-react'
 import EventCard from './EventCard'
 
 const EventList = () => {
+  const [events, setEvents] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
   const [searchQuery, setSearchQuery] = useState('')
-  const [selectedCategory, setSelectedCategory] = useState('')
-  const [priceRange, setPriceRange] = useState('')
-  const [sortBy, setSortBy] = useState('date')
 
-  // Get events data
-  const { data: events = [], isLoading, error } = useEvents()
+  useEffect(() => {
+    fetchEvents()
+  }, [])
 
-  // Filter and sort events
-  const filteredEvents = useMemo(() => {
-    let filtered = events
-
-    // Search filter
-    if (searchQuery) {
-      filtered = filtered.filter(event =>
-        event.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        event.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        event.location?.toLowerCase().includes(searchQuery.toLowerCase())
-      )
-    }
-
-    // Category filter
-    if (selectedCategory) {
-      filtered = filtered.filter(event => event.category === selectedCategory)
-    }
-
-    // Price filter
-    if (priceRange) {
-      const [min, max] = priceRange.split('-').map(Number)
-      filtered = filtered.filter(event => {
-        if (max) {
-          return event.price >= min && event.price <= max
-        }
-        return event.price >= min
-      })
-    }
-
-    // Sort events
-    filtered.sort((a, b) => {
-      switch (sortBy) {
-        case 'date':
-          return new Date(a.date) - new Date(b.date)
-        case 'price-low':
-          return a.price - b.price
-        case 'price-high':
-          return b.price - a.price
-        case 'name':
-          return a.title.localeCompare(b.title)
-        default:
-          return 0
+  const fetchEvents = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      
+      // Try to fetch from API first
+      const response = await fetch('/api/events')
+      if (response.ok) {
+        const data = await response.json()
+        setEvents(data)
+      } else {
+        throw new Error('API not available')
       }
-    })
-
-    return filtered
-  }, [events, searchQuery, selectedCategory, priceRange, sortBy])
-
-  // Get unique categories
-  const categories = useMemo(() => {
-    const uniqueCategories = [...new Set(events.map(event => event.category).filter(Boolean))]
-    return uniqueCategories.sort()
-  }, [events])
-
-  // Loading skeleton
-  if (isLoading) {
-    return (
-      <div className="space-y-8">
-        <div className="text-center">
-          <h1 className="text-3xl font-bold text-gray-900 mb-4">Discover Events</h1>
-          <p className="text-gray-600">Find amazing events and purchase tickets with Lightning payments</p>
-        </div>
-        
-        {/* Search and Filter Skeleton */}
-        <div className="space-y-4">
-          <div className="loading-skeleton h-12 w-full rounded-lg"></div>
-          <div className="flex gap-4">
-            <div className="loading-skeleton h-10 w-32 rounded-lg"></div>
-            <div className="loading-skeleton h-10 w-32 rounded-lg"></div>
-            <div className="loading-skeleton h-10 w-32 rounded-lg"></div>
-          </div>
-        </div>
-
-        {/* Events Grid Skeleton */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {[...Array(6)].map((_, i) => (
-            <div key={i} className="card">
-              <div className="loading-skeleton h-48 w-full rounded-lg mb-4"></div>
-              <div className="space-y-3">
-                <div className="loading-skeleton h-6 w-3/4 rounded"></div>
-                <div className="loading-skeleton h-4 w-full rounded"></div>
-                <div className="loading-skeleton h-4 w-2/3 rounded"></div>
-                <div className="loading-skeleton h-10 w-full rounded-lg"></div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    )
+    } catch (err) {
+      console.log('API not available, showing sample data:', err.message)
+      setError('API not available - showing sample data')
+      
+      // Set sample data for demonstration
+      setEvents([
+        {
+          id: 1,
+          title: 'Bitcoin Conference 2024',
+          description: 'The biggest Bitcoin conference of the year with world-renowned speakers and networking opportunities.',
+          start_time: '2024-06-15T10:00:00Z',
+          end_time: '2024-06-15T18:00:00Z',
+          price_sats: 50000,
+          capacity: 1000,
+          is_active: true,
+          stream_url: 'https://stream.example.com/bitcoin2024'
+        },
+        {
+          id: 2,
+          title: 'Lightning Network Workshop',
+          description: 'Learn about Lightning Network development and build your first Lightning application.',
+          start_time: '2024-07-01T14:00:00Z',
+          end_time: '2024-07-01T16:00:00Z',
+          price_sats: 25000,
+          capacity: 100,
+          is_active: true,
+          stream_url: 'https://stream.example.com/lightning-workshop'
+        },
+        {
+          id: 3,
+          title: 'UMA Protocol Deep Dive',
+          description: 'Explore the Universal Money Address protocol and its applications in modern payment systems.',
+          start_time: '2024-08-10T09:00:00Z',
+          end_time: '2024-08-10T17:00:00Z',
+          price_sats: 75000,
+          capacity: 500,
+          is_active: true,
+          stream_url: 'https://stream.example.com/uma-deep-dive'
+        }
+      ])
+    } finally {
+      setLoading(false)
+    }
   }
 
-  // Error state
-  if (error) {
+  // Filter events based on search query
+  const filteredEvents = events.filter(event =>
+    event.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    event.description.toLowerCase().includes(searchQuery.toLowerCase())
+  )
+
+  if (loading) {
     return (
-      <div className="text-center py-12">
-        <div className="text-red-500 text-6xl mb-4">⚠️</div>
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">Something went wrong</h2>
-        <p className="text-gray-600 mb-4">{error.message}</p>
-        <button
-          onClick={() => window.location.reload()}
-          className="btn-primary"
-        >
-          Try Again
-        </button>
+      <div className="flex justify-center items-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
       </div>
     )
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       {/* Header */}
       <div className="text-center">
-        <h1 className="text-3xl font-bold text-gray-900 mb-4">Discover Events</h1>
-        <p className="text-gray-600">Find amazing events and purchase tickets with Lightning payments</p>
+        <h1 className="text-3xl font-bold text-gray-900 mb-4">Upcoming Events</h1>
+        <p className="text-gray-600 max-w-2xl mx-auto">
+          Discover amazing virtual events and purchase tickets with Lightning payments
+        </p>
       </div>
 
-      {/* Search and Filters */}
-      <div className="space-y-4">
-        {/* Search Bar */}
+      {/* API Status Notice */}
+      {error && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+          <div className="flex">
+            <div className="flex-shrink-0">
+              <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="ml-3">
+              <h3 className="text-sm font-medium text-yellow-800">
+                Demo Mode
+              </h3>
+              <div className="mt-2 text-sm text-yellow-700">
+                <p>Backend API is not available. Showing sample events for demonstration purposes.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Search Bar */}
+      <div className="max-w-md mx-auto">
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
           <input
             type="text"
-            placeholder="Search events, locations, or categories..."
+            placeholder="Search events..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="input-field pl-10"
+            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
           />
         </div>
-
-        {/* Filter Controls */}
-        <div className="flex flex-wrap gap-4">
-          {/* Category Filter */}
-          <select
-            value={selectedCategory}
-            onChange={(e) => setSelectedCategory(e.target.value)}
-            className="input-field w-auto min-w-[140px]"
-          >
-            <option value="">All Categories</option>
-            {categories.map(category => (
-              <option key={category} value={category}>{category}</option>
-            ))}
-          </select>
-
-          {/* Price Range Filter */}
-          <select
-            value={priceRange}
-            onChange={(e) => setPriceRange(e.target.value)}
-            className="input-field w-auto min-w-[140px]"
-          >
-            <option value="">Any Price</option>
-            <option value="0-10000">Under 10k sats</option>
-            <option value="10000-50000">10k - 50k sats</option>
-            <option value="50000-100000">50k - 100k sats</option>
-            <option value="100000-">Over 100k sats</option>
-          </select>
-
-          {/* Sort By */}
-          <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value)}
-            className="input-field w-auto min-w-[140px]"
-          >
-            <option value="date">Sort by Date</option>
-            <option value="price-low">Price: Low to High</option>
-            <option value="price-high">Price: High to Low</option>
-            <option value="name">Sort by Name</option>
-          </select>
-        </div>
-      </div>
-
-      {/* Results Count */}
-      <div className="flex items-center justify-between">
-        <p className="text-gray-600">
-          {filteredEvents.length} event{filteredEvents.length !== 1 ? 's' : ''} found
-        </p>
-        
-        {searchQuery || selectedCategory || priceRange ? (
-          <button
-            onClick={() => {
-              setSearchQuery('')
-              setSelectedCategory('')
-              setPriceRange('')
-              setSortBy('date')
-            }}
-            className="text-uma-600 hover:text-uma-700 text-sm font-medium"
-          >
-            Clear all filters
-          </button>
-        ) : null}
       </div>
 
       {/* Events Grid */}
-      {filteredEvents.length > 0 ? (
+      {filteredEvents.length === 0 ? (
+        <div className="text-center py-12">
+          <div className="text-gray-400 mb-4">
+            <svg className="mx-auto h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+          </div>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">No events found</h3>
+          <p className="text-gray-600">
+            {searchQuery ? 'Try adjusting your search terms.' : 'Check back later for upcoming events.'}
+          </p>
+        </div>
+      ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredEvents.map(event => (
+          {filteredEvents.map((event) => (
             <EventCard key={event.id} event={event} />
           ))}
         </div>
-      ) : (
-        <div className="text-center py-12">
-          <div className="text-gray-400 text-6xl mb-4">🔍</div>
-          <h3 className="text-xl font-semibold text-gray-900 mb-2">No events found</h3>
-          <p className="text-gray-600">
-            Try adjusting your search criteria or browse all available events.
-          </p>
-          {(searchQuery || selectedCategory || priceRange) && (
-            <button
-              onClick={() => {
-                setSearchQuery('')
-                setSelectedCategory('')
-                setPriceRange('')
-                setSortBy('date')
-              }}
-              className="btn-primary mt-4"
-            >
-              Clear Filters
-            </button>
-          )}
-        </div>
       )}
+
+      {/* Event Count */}
+      <div className="text-center text-sm text-gray-500">
+        Showing {filteredEvents.length} of {events.length} events
+      </div>
     </div>
   )
 }

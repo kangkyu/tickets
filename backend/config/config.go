@@ -18,7 +18,7 @@ type Config struct {
 func LoadConfig() *Config {
 	return &Config{
 		Port:               getEnv("PORT", "8080"),
-		DatabaseURL:        getEnv("DATABASE_URL", "postgres://postgres:password@localhost:5432/tickets_uma?sslmode=disable"),
+		DatabaseURL:        getEnv("DATABASE_URL", "postgres://postgres:password@localhost:5432/umatickets?sslmode=disable"),
 		LightsparkAPIToken: getEnv("LIGHTSPARK_API_TOKEN", ""),
 		LightsparkEndpoint: getEnv("LIGHTSPARK_ENDPOINT", "api.lightspark.com"),
 		LightsparkNodeID:   getEnv("LIGHTSPARK_NODE_ID", ""),

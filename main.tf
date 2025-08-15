@@ -71,6 +71,36 @@ variable "lightspark_node_id" {
   sensitive   = true
 }
 
+variable "database_name" {
+  description = "Database name"
+  type        = string
+  default     = "umatickets"
+}
+
+variable "database_username" {
+  description = "Database username"
+  type        = string
+  default     = "postgres"
+}
+
+variable "database_instance_class" {
+  description = "RDS instance class"
+  type        = string
+  default     = "db.t3.micro"
+}
+
+variable "database_allocated_storage" {
+  description = "RDS allocated storage in GB"
+  type        = number
+  default     = 20
+}
+
+variable "local_database_url" {
+  description = "Local database URL for development"
+  type        = string
+  default     = "postgres://postgres:password@localhost:5432/umatickets?sslmode=disable"
+}
+
 # VPC Configuration
 resource "aws_vpc" "main" {
   cidr_block           = "10.0.0.0/16"
@@ -278,13 +308,13 @@ resource "aws_db_instance" "postgres" {
   identifier            = "${var.app_name}-postgres"
   engine                = "postgres"
   engine_version        = "15.7"
-  instance_class        = "db.t3.micro"
-  allocated_storage     = 20
+  instance_class        = var.database_instance_class
+  allocated_storage     = var.database_allocated_storage
   max_allocated_storage = 100
   storage_encrypted     = true
 
-  db_name  = "umatickets"
-  username = "postgres"
+  db_name  = var.database_name
+  username = var.database_username
   password = random_password.db_password.result
 
   vpc_security_group_ids = [aws_security_group.rds.id]
@@ -354,7 +384,7 @@ resource "aws_ecs_task_definition" "backend" {
         },
         {
           name  = "DATABASE_URL"
-          value = "postgres://postgres:${random_password.db_password.result}@${aws_db_instance.postgres.endpoint}/umatickets?sslmode=require"
+          value = "postgres://${var.database_username}:${random_password.db_password.result}@${aws_db_instance.postgres.endpoint}/${var.database_name}?sslmode=require"
         },
         {
           name  = "LIGHTSPARK_ENDPOINT"
@@ -664,8 +694,8 @@ resource "aws_amplify_app" "frontend" {
 
   # Environment variables for frontend
   environment_variables = {
-    VITE_API_URL = "https://${aws_lb.main.dns_name}"
-    NODE_ENV     = "production"
+    VITE_API_BASE_URL = "https://${aws_lb.main.dns_name}/api"
+    NODE_ENV          = "production"
   }
 
   # Enable auto branch creation from GitHub
