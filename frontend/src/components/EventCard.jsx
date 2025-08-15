@@ -7,31 +7,30 @@ const EventCard = ({ event }) => {
     id,
     title,
     description,
-    date,
-    location,
-    price,
-    availableTickets,
-    imageUrl,
-    category
+    start_time,
+    end_time,
+    price_sats,
+    capacity,
+    is_active,
+    stream_url
   } = event
+
+  // Calculate available tickets (assuming all tickets are available for demo)
+  const availableTickets = capacity
+  const price = price_sats
+  const date = start_time
 
   return (
     <div className="card hover:shadow-lg transition-shadow duration-200 group">
       {/* Event Image */}
       <div className="relative mb-4">
-        <img
-          src={imageUrl || '/placeholder-event.jpg'}
-          alt={title}
-          className="w-full h-48 object-cover rounded-lg group-hover:scale-105 transition-transform duration-200"
-          onError={(e) => {
-            e.target.src = '/placeholder-event.jpg'
-          }}
-        />
-        {category && (
-          <span className="absolute top-3 left-3 bg-uma-600 text-white text-xs font-medium px-2 py-1 rounded-full">
-            {category}
-          </span>
-        )}
+        <div className="w-full h-48 bg-gradient-to-br from-uma-500 to-uma-700 rounded-lg flex items-center justify-center group-hover:scale-105 transition-transform duration-200">
+          <div className="text-center text-white">
+            <Calendar className="w-16 h-16 mx-auto mb-2 opacity-80" />
+            <p className="text-lg font-semibold">{title.split(' ')[0]}</p>
+            <p className="text-sm opacity-80">Event</p>
+          </div>
+        </div>
         {availableTickets <= 5 && availableTickets > 0 && (
           <span className="absolute top-3 right-3 bg-orange-500 text-white text-xs font-medium px-2 py-1 rounded-full">
             Only {availableTickets} left!
@@ -60,13 +59,6 @@ const EventCard = ({ event }) => {
             <Calendar className="w-4 h-4 mr-2" />
             <span>{formatEventDateShort(date)}</span>
           </div>
-          
-          {location && (
-            <div className="flex items-center text-sm text-gray-500">
-              <MapPin className="w-4 h-4 mr-2" />
-              <span className="truncate">{location}</span>
-            </div>
-          )}
           
           <div className="flex items-center justify-between">
             <div className="flex items-center text-sm text-gray-500">
