@@ -669,11 +669,9 @@ applications:
   - appRoot: frontend
     frontend:
       phases:
-        preBuild:
-          commands:
-            - npm i
         build:
           commands:
+            - npm ci
             - npm run build
       artifacts:
         baseDirectory: dist
