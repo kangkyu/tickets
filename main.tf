@@ -684,11 +684,11 @@ resource "aws_amplify_app" "frontend" {
             }
           }
           artifacts = {
-            baseDirectory = "frontend/dist"
+            baseDirectory = "dist"
             files         = ["**/*"]
           }
           cache = {
-            paths = ["frontend/node_modules/**/*"]
+            paths = ["node_modules/**/*"]
           }
         }
       }
