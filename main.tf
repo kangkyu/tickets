@@ -657,93 +657,49 @@ resource "random_password" "jwt_secret" {
   special = true
 }
 
-# AWS Amplify App
+# AWS Amplify App - Simplified
 resource "aws_amplify_app" "frontend" {
-  name       = "${var.app_name}-frontend"
-  repository = var.github_repo_url
-
+  name         = "${var.app_name}-frontend"
+  repository   = var.github_repo_url
   access_token = var.github_access_token
 
-  # Build settings for monorepo
+  # Simplified build settings for monorepo
   build_spec = yamlencode({
     version = 1
-    applications = [
-      {
-        appRoot = "frontend"
-        frontend = {
-          phases = {
-            preBuild = {
-              commands = [
-                "npm ci",
-                "echo 'After npm ci:' && ls -la && echo 'node_modules exists:' && [ -d node_modules ] && echo 'YES' || echo 'NO'"
-              ]
-            }
-            build = {
-              commands = [
-                "npm run build"
-              ]
-            }
-          }
-          artifacts = {
-            baseDirectory = "dist"
-            files         = ["**/*"]
-          }
-          cache = {
-            paths = ["node_modules/**/*"]
-          }
+    frontend = {
+      phases = {
+        preBuild = {
+          commands = [
+            "cd frontend",
+            "npm ci"
+          ]
+        }
+        build = {
+          commands = [
+            "cd frontend",
+            "npm run build"
+          ]
         }
       }
-    ]
+      artifacts = {
+        baseDirectory = "frontend/dist"
+        files         = ["**/*"]
+      }
+      cache = {
+        paths = ["frontend/node_modules/**/*"]
+      }
+    }
   })
 
   # Environment variables for frontend
   environment_variables = {
-    VITE_API_BASE_URL = "https://${aws_lb.main.dns_name}/api"
-    NODE_ENV          = "production"
-  }
-
-  # Enable auto branch creation from GitHub
-  enable_auto_branch_creation   = true
-  auto_branch_creation_patterns = [var.main_branch_name, "develop"]
-
-  auto_branch_creation_config {
-    enable_auto_build = true
+    VITE_API_URL = "https://${aws_lb.main.dns_name}"
+    NODE_ENV     = "production"
   }
 
   tags = {
     Name        = "${var.app_name}-frontend"
     Environment = var.environment
-  }
-}
-
-# Amplify Branch
-resource "aws_amplify_branch" "main" {
-  app_id      = aws_amplify_app.frontend.id
-  branch_name = var.main_branch_name
-
-  enable_auto_build = true
-
-  tags = {
-    Name        = "${var.app_name}-main-branch"
-    Environment = var.environment
-  }
-}
-
-# Custom domain (optional)
-resource "aws_amplify_domain_association" "main" {
-  count = var.domain_name != "" ? 1 : 0
-
-  app_id      = aws_amplify_app.frontend.id
-  domain_name = var.domain_name
-
-  sub_domain {
-    branch_name = aws_amplify_branch.main.branch_name
-    prefix      = ""
-  }
-
-  sub_domain {
-    branch_name = aws_amplify_branch.main.branch_name
-    prefix      = "www"
   }
 }
 
