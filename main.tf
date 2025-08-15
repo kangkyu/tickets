@@ -673,10 +673,26 @@ applications:
           commands:
             - npm ci --include=dev
             - echo "Dependencies installed, checking node_modules:"
-            - "echo 'Current directory:' && pwd"
-            - "echo 'node_modules contents:' && ls -la node_modules/"
-            - "echo 'Looking for vite:' && which vite"
-            - "echo 'Scripts:' && npm run"
+            - echo "Current directory:"
+            - pwd
+            - echo "node_modules contents:"
+            - ls -la node_modules/
+            - echo "Checking .bin directory:"
+            - ls -la node_modules/.bin/ || echo "No .bin directory"
+            - echo "Looking for vite executable:"
+            - which vite
+            - echo "Checking if vite package exists:"
+            - ls -la node_modules/vite/ || echo "vite package not found"
+            - echo "Checking package.json scripts:"
+            - npm run
+            - echo "Trying to find vite binary:"
+            - find node_modules -name "vite" -type f
+            - echo "Adding node_modules/.bin to PATH:"
+            - export PATH="$PWD/node_modules/.bin:$PATH"
+            - echo "New PATH:"
+            - echo $PATH
+            - echo "Now looking for vite:"
+            - which vite
         build:
           commands:
             - npm run build
