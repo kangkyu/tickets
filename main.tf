@@ -672,12 +672,12 @@ resource "aws_amplify_app" "frontend" {
           phases = {
             preBuild = {
               commands = [
+                "envCache --set stackInfo ''",
                 "npm ci"
               ]
             }
             build = {
               commands = [
-                "envCache --set stackInfo ''",
                 "npm run build"
               ]
             }
