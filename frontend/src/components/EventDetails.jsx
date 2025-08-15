@@ -122,19 +122,13 @@ const EventDetails = () => {
         <div className="lg:col-span-2 space-y-6">
           {/* Event Image */}
           <div className="relative">
-            <img
-              src={event.imageUrl || '/placeholder-event.jpg'}
-              alt={event.title}
-              className="w-full h-96 object-cover rounded-lg"
-              onError={(e) => {
-                e.target.src = '/placeholder-event.jpg'
-              }}
-            />
-            {event.category && (
-              <span className="absolute top-4 left-4 bg-uma-600 text-white px-3 py-1 rounded-full text-sm font-medium">
-                {event.category}
-              </span>
-            )}
+            <div className="w-full h-96 bg-gradient-to-br from-uma-500 to-uma-700 rounded-lg flex items-center justify-center">
+              <div className="text-center text-white">
+                <Calendar className="w-24 h-24 mx-auto mb-4 opacity-80" />
+                <h3 className="text-2xl font-bold mb-2">{event.title}</h3>
+                <p className="text-lg opacity-80">Virtual Event</p>
+              </div>
+            </div>
           </div>
 
           {/* Event Description */}

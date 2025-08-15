@@ -160,14 +160,13 @@ const TicketList = () => {
               <div key={ticket.id} className="card hover:shadow-lg transition-shadow duration-200">
                 {/* Event Image */}
                 <div className="relative mb-4">
-                  <img
-                    src={ticket.eventImageUrl || '/placeholder-event.jpg'}
-                    alt={ticket.eventTitle}
-                    className="w-full h-48 object-cover rounded-lg"
-                    onError={(e) => {
-                      e.target.src = '/placeholder-event.jpg'
-                    }}
-                  />
+                  <div className="w-full h-48 bg-gradient-to-br from-uma-500 to-uma-700 rounded-lg flex items-center justify-center">
+                    <div className="text-center text-white">
+                      <Calendar className="w-12 h-12 mx-auto mb-2 opacity-80" />
+                      <p className="text-sm font-semibold">{ticket.eventTitle.split(' ')[0]}</p>
+                      <p className="text-xs opacity-80">Event</p>
+                    </div>
+                  </div>
                   
                   {/* Status Badge */}
                   <div className={`absolute top-3 right-3 ${statusInfo.bgColor} ${statusInfo.borderColor} border px-3 py-1 rounded-full`}>

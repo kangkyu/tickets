@@ -269,11 +269,9 @@ const TicketPurchase = () => {
               <div className="space-y-4">
                 {/* Event Info */}
                 <div className="flex items-start gap-3">
-                  <img
-                    src={event.imageUrl || '/placeholder-event.jpg'}
-                    alt={event.title}
-                    className="w-16 h-16 object-cover rounded-lg"
-                  />
+                  <div className="w-16 h-16 bg-gradient-to-br from-uma-500 to-uma-700 rounded-lg flex items-center justify-center">
+                    <Calendar className="w-6 h-6 text-white opacity-80" />
+                  </div>
                   <div className="flex-1">
                     <h4 className="font-medium text-gray-900">{event.title}</h4>
                     <p className="text-sm text-gray-600">{event.date}</p>

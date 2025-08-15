@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { Calendar, MapPin, Users, Clock } from 'lucide-react'
+import { Calendar, Users } from 'lucide-react'
 import { formatEventDateShort, formatPrice, truncateText } from '../utils/formatters'
 
 const EventCard = ({ event }) => {
