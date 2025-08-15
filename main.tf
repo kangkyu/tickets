@@ -693,12 +693,31 @@ resource "aws_amplify_app" "frontend" {
 
   # Environment variables for frontend
   environment_variables = {
-    VITE_API_URL = "https://${aws_lb.main.dns_name}"
-    NODE_ENV     = "production"
+    VITE_API_BASE_URL = "https://${aws_lb.main.dns_name}"
+    NODE_ENV          = "production"
   }
 
   tags = {
     Name        = "${var.app_name}-frontend"
+    Environment = var.environment
+  }
+}
+
+resource "aws_amplify_branch" "main" {
+  app_id      = aws_amplify_app.frontend.id
+  branch_name = var.main_branch_name
+
+  # Build settings for this specific branch
+  enable_auto_build = true
+
+  # Environment variables specific to this branch
+  environment_variables = {
+    VITE_API_BASE_URL = "https://${aws_lb.main.dns_name}/api"
+    NODE_ENV          = "production"
+  }
+
+  tags = {
+    Name        = "${var.app_name}-frontend-${var.main_branch_name}"
     Environment = var.environment
   }
 }
@@ -718,11 +737,6 @@ output "database_endpoint" {
   description = "RDS endpoint"
   value       = aws_db_instance.postgres.endpoint
   sensitive   = true
-}
-
-output "ecr_repository_url" {
-  description = "ECR repository URL for backend"
-  value       = aws_ecr_repository.backend.repository_url
 }
 
 output "amplify_app_id" {
