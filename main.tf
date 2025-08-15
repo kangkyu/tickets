@@ -676,6 +676,7 @@ applications:
             - npm ci
         build:
           commands:
+            - cd frontend
             - npm run build
       artifacts:
         baseDirectory: dist
