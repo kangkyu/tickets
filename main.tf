@@ -668,15 +668,12 @@ version: 1
 applications:
   - appRoot: frontend
     frontend:
-      buildPath: /
       phases:
         preBuild:
           commands:
-            - cd frontend
-            - npm ci
+            - npm i
         build:
           commands:
-            - cd frontend
             - npm run build
       artifacts:
         baseDirectory: dist
