@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Search, Calendar, DollarSign } from 'lucide-react'
 import EventCard from './EventCard'
+import config from '../config/api'
 
 const EventList = () => {
   const [events, setEvents] = useState([])
@@ -18,7 +19,7 @@ const EventList = () => {
       setError(null)
       
       // Try to fetch from API first
-      const response = await fetch('/api/events')
+      const response = await fetch(`${config.apiUrl}/events`)
       if (response.ok) {
         const data = await response.json()
         setEvents(data)
