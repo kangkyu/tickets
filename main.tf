@@ -675,14 +675,11 @@ resource "aws_amplify_app" "frontend" {
             preBuild = {
               commands = [
                 "npm ci",
-                "ls -la node_modules/.bin/ | grep vite"
+                "echo 'After npm ci:' && ls -la && echo 'node_modules exists:' && [ -d node_modules ] && echo 'YES' || echo 'NO'"
               ]
             }
             build = {
               commands = [
-                "echo 'Current directory:' && pwd",
-                "echo 'Node modules:' && ls -la node_modules/.bin/ | head -10",
-                "echo 'Package.json scripts:' && npm run",
                 "npm run build"
               ]
             }
