@@ -663,36 +663,26 @@ resource "aws_amplify_app" "frontend" {
   repository   = var.github_repo_url
   access_token = var.github_access_token
 
-  build_spec = yamlencode({
-    version = 0.1
-    applications = [
-      {
-        appRoot = "frontend"
-        frontend = {
-          phases = {
-            preBuild = {
-              commands = [
-                "envCache --set stackInfo ''",
-                "npm ci"
-              ]
-            }
-            build = {
-              commands = [
-                "npm run build"
-              ]
-            }
-          }
-          artifacts = {
-            baseDirectory = "dist"
-            files         = ["**/*"]
-          }
-          cache = {
-            paths = ["node_modules/**/*"]
-          }
-        }
-      }
-    ]
-  })
+  build_spec = <<-EOT
+version: 1
+applications:
+  - appRoot: frontend
+    frontend:
+      phases:
+        preBuild:
+          commands:
+            - npm ci
+        build:
+          commands:
+            - npm run build
+      artifacts:
+        baseDirectory: dist
+        files:
+          - '**/*'
+      cache:
+        paths:
+          - node_modules/**/*
+EOT
 
   # Environment variables for frontend
   environment_variables = {
