@@ -672,6 +672,8 @@ applications:
         preBuild:
           commands:
             - npm ci
+            - echo "Dependencies installed, checking node_modules:"
+            - ls -la node_modules/.bin/ | grep vite
         build:
           commands:
             - npm run build
