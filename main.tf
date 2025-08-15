@@ -341,9 +341,7 @@ resource "aws_db_instance" "postgres" {
 
 resource "random_password" "db_password" {
   length  = 20
-  special = true
-
-  override_special = "!#$%*-_=+"
+  special = false
 }
 
 # ECS Cluster
@@ -676,7 +674,6 @@ resource "aws_amplify_app" "frontend" {
           phases = {
             preBuild = {
               commands = [
-                "cd frontend",
                 "npm ci"
               ]
             }
@@ -687,11 +684,11 @@ resource "aws_amplify_app" "frontend" {
             }
           }
           artifacts = {
-            baseDirectory = "dist"
+            baseDirectory = "frontend/dist"
             files         = ["**/*"]
           }
           cache = {
-            paths = ["node_modules/**/*"]
+            paths = ["frontend/node_modules/**/*"]
           }
         }
       }

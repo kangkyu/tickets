@@ -16,8 +16,9 @@ RUN go mod download
 # Copy source code
 COPY . .
 
-# Build the application
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o main .
+# Build the application for Linux AMD64 (AWS ECS)
+# This ensures compatibility regardless of the host architecture
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -installsuffix cgo -o main .
 
 # Final stage
 FROM alpine:latest
@@ -35,8 +36,9 @@ WORKDIR /app
 # Copy binary from builder stage
 COPY --from=builder /app/main .
 
-# Change ownership to non-root user
-RUN chown -R appuser:appgroup /app
+# Make binary executable and set ownership
+RUN chmod +x main && \
+    chown -R appuser:appgroup /app
 
 # Switch to non-root user
 USER appuser
@@ -44,9 +46,7 @@ USER appuser
 # Expose port
 EXPOSE 8080
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:8080/health || exit 1
+
 
 # Run the application
 CMD ["./main"]
