@@ -53,8 +53,14 @@ variable "github_access_token" {
   sensitive   = true
 }
 
-variable "lightspark_api_token" {
-  description = "Lightspark API token"
+variable "lightspark_client_id" {
+  description = "Lightspark API Client ID"
+  type        = string
+  sensitive   = true
+}
+
+variable "lightspark_client_secret" {
+  description = "Lightspark API Client Secret"
   type        = string
   sensitive   = true
 }
@@ -271,7 +277,7 @@ resource "aws_db_subnet_group" "main" {
 resource "aws_db_instance" "postgres" {
   identifier            = "${var.app_name}-postgres"
   engine                = "postgres"
-  engine_version        = "15.4"
+  engine_version        = "15.7"
   instance_class        = "db.t3.micro"
   allocated_storage     = 20
   max_allocated_storage = 100
@@ -300,6 +306,8 @@ resource "aws_db_instance" "postgres" {
 resource "random_password" "db_password" {
   length  = 20
   special = true
+
+  override_special = "!#$%*-_=+"
 }
 
 # ECS Cluster
@@ -360,8 +368,12 @@ resource "aws_ecs_task_definition" "backend" {
 
       secrets = [
         {
-          name      = "LIGHTSPARK_API_TOKEN"
-          valueFrom = aws_ssm_parameter.lightspark_token.arn
+          name      = "LIGHTSPARK_CLIENT_ID"
+          valueFrom = aws_ssm_parameter.lightspark_client_id.arn
+        },
+        {
+          name      = "LIGHTSPARK_CLIENT_SECRET"
+          valueFrom = aws_ssm_parameter.lightspark_client_secret.arn
         },
         {
           name      = "LIGHTSPARK_NODE_ID"
@@ -530,7 +542,8 @@ resource "aws_iam_role_policy" "ecs_execution_ssm" {
           "ssm:GetParametersByPath"
         ]
         Resource = [
-          aws_ssm_parameter.lightspark_token.arn,
+          aws_ssm_parameter.lightspark_client_id.arn,
+          aws_ssm_parameter.lightspark_client_secret.arn,
           aws_ssm_parameter.lightspark_node_id.arn
         ]
       }
@@ -572,13 +585,24 @@ resource "aws_cloudwatch_log_group" "backend" {
 }
 
 # SSM Parameters for secrets
-resource "aws_ssm_parameter" "lightspark_token" {
-  name  = "/${var.app_name}/lightspark/api_token"
+resource "aws_ssm_parameter" "lightspark_client_id" {
+  name  = "/${var.app_name}/lightspark/client_id"
   type  = "SecureString"
-  value = var.lightspark_api_token
+  value = var.lightspark_client_id
 
   tags = {
-    Name        = "${var.app_name}-lightspark-token"
+    Name        = "${var.app_name}-lightspark-client-id"
+    Environment = var.environment
+  }
+}
+
+resource "aws_ssm_parameter" "lightspark_client_secret" {
+  name  = "/${var.app_name}/lightspark/client_secret"
+  type  = "SecureString"
+  value = var.lightspark_client_secret
+
+  tags = {
+    Name        = "${var.app_name}-lightspark-client-secret"
     Environment = var.environment
   }
 }

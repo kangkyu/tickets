@@ -1,0 +1,231 @@
+package server
+
+import (
+	"net/http"
+	"time"
+
+	"github.com/gorilla/mux"
+	"github.com/jmoiron/sqlx"
+	"log/slog"
+	"tickets-by-uma/config"
+	"tickets-by-uma/handlers"
+	"tickets-by-uma/middleware"
+	"tickets-by-uma/repositories"
+	"tickets-by-uma/services"
+)
+
+type Server struct {
+	db             *sqlx.DB
+	logger         *slog.Logger
+	config         *config.Config
+	userRepo       repositories.UserRepository
+	eventRepo      repositories.EventRepository
+	ticketRepo     repositories.TicketRepository
+	paymentRepo    repositories.PaymentRepository
+	umaService     services.UMAService
+	router         *mux.Router
+	userHandlers   *handlers.UserHandlers
+	eventHandlers  *handlers.EventHandlers
+	ticketHandlers *handlers.TicketHandlers
+	paymentHandlers *handlers.PaymentHandlers
+}
+
+func NewServer(db *sqlx.DB, logger *slog.Logger, config *config.Config) *Server {
+	s := &Server{
+		db:     db,
+		logger: logger,
+		config: config,
+		router: mux.NewRouter(),
+	}
+	
+	// Initialize repositories
+	s.userRepo = repositories.NewUserRepository(db)
+	s.eventRepo = repositories.NewEventRepository(db)
+	s.ticketRepo = repositories.NewTicketRepository(db)
+	s.paymentRepo = repositories.NewPaymentRepository(db)
+	
+	// Initialize UMA service
+	s.umaService = services.NewLightsparkUMAService(
+		config.LightsparkAPIToken,
+		config.LightsparkEndpoint,
+		config.LightsparkNodeID,
+		logger,
+	)
+	
+	// Initialize handlers
+	s.initializeHandlers()
+	
+	s.setupRoutes()
+	return s
+}
+
+func (s *Server) setupRoutes() {
+	// Add CORS middleware
+	s.router.Use(s.corsMiddleware)
+	
+	// Add logging middleware
+	s.router.Use(s.loggingMiddleware)
+	
+	// Health check endpoint
+	s.router.HandleFunc("/health", s.handleHealth).Methods("GET")
+	
+	// API routes
+	api := s.router.PathPrefix("/api").Subrouter()
+	
+	// User routes (no auth required)
+	api.HandleFunc("/users", s.userHandlers.HandleCreateUser).Methods("POST")
+	api.HandleFunc("/users/login", s.userHandlers.HandleLogin).Methods("POST")
+	api.HandleFunc("/users/{id:[0-9]+}", s.userHandlers.HandleGetUser).Methods("GET")
+	
+	// Event routes (public)
+	api.HandleFunc("/events", s.eventHandlers.HandleGetEvents).Methods("GET")
+	api.HandleFunc("/events/{id:[0-9]+}", s.eventHandlers.HandleGetEvent).Methods("GET")
+	
+	// Ticket routes (public for purchase, auth for others)
+	api.HandleFunc("/tickets/purchase", s.ticketHandlers.HandlePurchaseTicket).Methods("POST")
+	api.HandleFunc("/tickets/{id:[0-9]+}/status", s.ticketHandlers.HandleTicketStatus).Methods("GET")
+	api.HandleFunc("/tickets/validate", s.ticketHandlers.HandleValidateTicket).Methods("POST")
+	
+	// Payment webhook (no auth required)
+	api.HandleFunc("/webhooks/payment", s.paymentHandlers.HandlePaymentWebhook).Methods("POST")
+	
+	// Protected routes (require authentication)
+	protected := api.PathPrefix("").Subrouter()
+	protected.Use(middleware.AuthMiddleware(s.config.JWTSecret))
+	
+	// Protected user routes
+	protected.HandleFunc("/users/me", s.userHandlers.HandleGetCurrentUser).Methods("GET")
+	protected.HandleFunc("/users/{id:[0-9]+}", s.userHandlers.HandleUpdateUser).Methods("PUT")
+	protected.HandleFunc("/users/{id:[0-9]+}", s.userHandlers.HandleDeleteUser).Methods("DELETE")
+	
+	// Protected ticket routes
+	protected.HandleFunc("/tickets/user/{user_id:[0-9]+}", s.ticketHandlers.HandleGetUserTickets).Methods("GET")
+	
+	// Protected payment routes
+	protected.HandleFunc("/payments/{invoice_id}/status", s.paymentHandlers.HandlePaymentStatus).Methods("GET")
+	
+	// Admin routes (require authentication and admin privileges)
+	admin := api.PathPrefix("/admin").Subrouter()
+	admin.Use(middleware.AuthMiddleware(s.config.JWTSecret))
+	admin.Use(s.adminMiddleware)
+	
+	// Admin event routes
+	admin.HandleFunc("/events", s.eventHandlers.HandleCreateEvent).Methods("POST")
+	admin.HandleFunc("/events/{id:[0-9]+}", s.eventHandlers.HandleUpdateEvent).Methods("PUT")
+	admin.HandleFunc("/events/{id:[0-9]+}", s.eventHandlers.HandleDeleteEvent).Methods("DELETE")
+	
+	// Admin payment routes
+	admin.HandleFunc("/payments/pending", s.paymentHandlers.HandleGetPendingPayments).Methods("GET")
+	admin.HandleFunc("/payments/{id:[0-9]+}/retry", s.paymentHandlers.HandleRetryPayment).Methods("POST")
+}
+
+// Initialize handlers
+func (s *Server) initializeHandlers() {
+	s.userHandlers = handlers.NewUserHandlers(s.userRepo, s.logger, s.config.JWTSecret)
+	s.eventHandlers = handlers.NewEventHandlers(s.eventRepo, s.logger)
+	s.ticketHandlers = handlers.NewTicketHandlers(s.ticketRepo, s.eventRepo, s.paymentRepo, s.umaService, s.logger)
+	s.paymentHandlers = handlers.NewPaymentHandlers(s.paymentRepo, s.ticketRepo, s.umaService, s.logger)
+}
+
+// CORS middleware
+func (s *Server) corsMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		
+		next.ServeHTTP(w, r)
+	})
+}
+
+// Logging middleware
+func (s *Server) loggingMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		
+		// Create a response writer wrapper to capture status code
+		wrapped := &responseWriter{ResponseWriter: w, statusCode: http.StatusOK}
+		
+		next.ServeHTTP(wrapped, r)
+		
+		duration := time.Since(start)
+		
+		s.logger.Info("HTTP Request",
+			"method", r.Method,
+			"path", r.URL.Path,
+			"status", wrapped.statusCode,
+			"duration", duration,
+			"user_agent", r.UserAgent(),
+			"remote_addr", r.RemoteAddr,
+		)
+	})
+}
+
+// Admin middleware
+func (s *Server) adminMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		user := middleware.GetUserFromContext(r.Context())
+		if user == nil {
+			middleware.WriteError(w, http.StatusUnauthorized, "Authentication required")
+			return
+		}
+		
+		// Check if user is admin
+		isAdmin := false
+		for _, adminEmail := range s.config.AdminEmails {
+			if user.Email == adminEmail {
+				isAdmin = true
+				break
+			}
+		}
+		
+		if !isAdmin {
+			middleware.WriteError(w, http.StatusForbidden, "Admin privileges required")
+			return
+		}
+		
+		next.ServeHTTP(w, r)
+	})
+}
+
+// Health check handler
+func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
+	// Check database connection
+	if err := s.db.Ping(); err != nil {
+		s.logger.Error("Health check failed - database connection error", "error", err)
+		middleware.WriteError(w, http.StatusServiceUnavailable, "Database connection failed")
+		return
+	}
+	
+	middleware.WriteJSON(w, http.StatusOK, map[string]interface{}{
+		"status":    "healthy",
+		"timestamp": time.Now().Format(time.RFC3339),
+		"service":   "tickets-by-uma",
+		"version":   "1.0.0",
+	})
+}
+
+// GetRouter returns the configured router
+func (s *Server) GetRouter() *mux.Router {
+	return s.router
+}
+
+// responseWriter wraps http.ResponseWriter to capture status code
+type responseWriter struct {
+	http.ResponseWriter
+	statusCode int
+}
+
+func (rw *responseWriter) WriteHeader(code int) {
+	rw.statusCode = code
+	rw.ResponseWriter.WriteHeader(code)
+}
+
+func (rw *responseWriter) Write(b []byte) (int, error) {
+	return rw.ResponseWriter.Write(b)
+}

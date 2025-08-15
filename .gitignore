@@ -1,1 +1,11 @@
+# macos file
 /**/.DS_Store
+
+# Terraform file
+.terraform/
+terraform.tfstate*
+*.tfvars
+
+.terraform.tfstate.lock.info
+
+.idea/
