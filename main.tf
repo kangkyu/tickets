@@ -663,32 +663,34 @@ resource "aws_amplify_app" "frontend" {
   repository   = var.github_repo_url
   access_token = var.github_access_token
 
-  # Simplified build settings for monorepo
   build_spec = yamlencode({
-    version = 1
-    frontend = {
-      phases = {
-        preBuild = {
-          commands = [
-            "cd frontend",
-            "npm ci"
-          ]
+    version = 0.1
+    applications = [
+      {
+        appRoot = "frontend"
+        frontend = {
+          phases = {
+            preBuild = {
+              commands = [
+                "npm ci"
+              ]
+            }
+            build = {
+              commands = [
+                "npm run build"
+              ]
+            }
+          }
+          artifacts = {
+            baseDirectory = "dist"
+            files         = ["**/*"]
+          }
+          cache = {
+            paths = ["node_modules/**/*"]
+          }
         }
-        build = {
-          commands = [
-            "cd frontend",
-            "npm run build"
-          ]
-        }
       }
-      artifacts = {
-        baseDirectory = "frontend/dist"
-        files         = ["**/*"]
-      }
-      cache = {
-        paths = ["frontend/node_modules/**/*"]
-      }
-    }
+    ]
   })
 
   # Environment variables for frontend
