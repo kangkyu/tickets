@@ -677,6 +677,7 @@ resource "aws_amplify_app" "frontend" {
             }
             build = {
               commands = [
+                "envCache --set stackInfo ''",
                 "npm run build"
               ]
             }
