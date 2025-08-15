@@ -688,6 +688,7 @@ EOT
   environment_variables = {
     VITE_API_BASE_URL = "https://${aws_lb.main.dns_name}"
     NODE_ENV          = "production"
+    AMPLIFY_MONOREPO_APP_ROOT = "frontend"
   }
 
   tags = {
