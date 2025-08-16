@@ -1,5 +1,5 @@
 const config = {
-  apiUrl: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api',
+  apiUrl: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080',
   isDevelopment: import.meta.env.MODE === 'development',
   isProduction: import.meta.env.MODE === 'production',
   pollInterval: 10000, // Payment status polling interval (10 seconds)

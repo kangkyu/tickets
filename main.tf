@@ -1,4 +1,3 @@
-# terraform/main.tf
 terraform {
   required_version = ">= 1.0"
   required_providers {
@@ -11,6 +10,12 @@ terraform {
 
 provider "aws" {
   region = var.aws_region
+}
+
+# Provider for us-east-1 (required for CloudFront ACM certificate)
+provider "aws" {
+  alias  = "us_east_1"
+  region = "us-east-1"
 }
 
 # Data sources
@@ -39,7 +44,13 @@ variable "app_name" {
 variable "domain_name" {
   description = "Domain name for the application"
   type        = string
-  default     = ""
+  default     = "fanmeeting.org"
+}
+
+variable "use_custom_domain" {
+  description = "Whether to use custom domain with CloudFront"
+  type        = bool
+  default     = false
 }
 
 variable "github_repo_url" {
@@ -688,7 +699,7 @@ EOT
 
   # Environment variables for frontend
   environment_variables = {
-    NODE_ENV          = "production"
+    NODE_ENV                  = "production"
     AMPLIFY_MONOREPO_APP_ROOT = "frontend"
   }
 
@@ -698,16 +709,15 @@ EOT
   }
 }
 
+# Updated Amplify branch with CloudFront support
 resource "aws_amplify_branch" "main" {
   app_id      = aws_amplify_app.frontend.id
   branch_name = var.main_branch_name
-
-  # Build settings for this specific branch
   enable_auto_build = true
 
-  # Environment variables specific to this branch
+  # Updated environment variables for the new setup
   environment_variables = {
-    VITE_API_BASE_URL = "http://${aws_lb.main.dns_name}/api"
+    VITE_API_BASE_URL = var.use_custom_domain ? "https://api.${var.domain_name}" : "http://${aws_lb.main.dns_name}"
     NODE_ENV          = "production"
   }
 
@@ -717,10 +727,74 @@ resource "aws_amplify_branch" "main" {
   }
 }
 
-# Outputs
+# Add custom domain to Amplify app
+resource "aws_amplify_domain_association" "main" {
+  count       = var.use_custom_domain ? 1 : 0
+  app_id      = aws_amplify_app.frontend.id
+  domain_name = var.domain_name
+
+  # Add subdomain for API if needed
+  sub_domain {
+    branch_name = aws_amplify_branch.main.branch_name
+    prefix      = ""  # Root domain
+  }
+}
+
+# ACM certificate for ALB (in your main region)
+resource "aws_acm_certificate" "alb" {
+  count       = var.use_custom_domain ? 1 : 0
+  domain_name = "api.${var.domain_name}"  # api.fanmeeting.org
+
+  validation_method = "DNS"
+
+  lifecycle {
+    create_before_destroy = true
+  }
+
+  tags = {
+    Name        = "${var.app_name}-alb-cert"
+    Environment = var.environment
+  }
+}
+
+# HTTPS listener for ALB
+resource "aws_lb_listener" "https" {
+  count             = var.use_custom_domain ? 1 : 0
+  load_balancer_arn = aws_lb.main.arn
+  port              = "443"
+  protocol          = "HTTPS"
+  ssl_policy        = "ELBSecurityPolicy-TLS-1-2-2017-01"
+  certificate_arn   = aws_acm_certificate.alb[0].arn
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.backend.arn
+  }
+}
+
+output "amplify_dns_record" {
+  description = "DNS record to add at Name.com for Amplify"
+  value = var.use_custom_domain ? {
+    message = "Add this CNAME record at Name.com:"
+    type    = "CNAME"
+    name    = var.domain_name
+    target  = aws_amplify_domain_association.main[0].certificate_verification_dns_record
+  } : null
+}
+
+output "backend_dns_record" {
+  description = "DNS record for backend API"
+  value = var.use_custom_domain ? {
+    message = "Add this CNAME record at Name.com:"
+    type    = "CNAME"
+    name    = "api.${var.domain_name}"
+    target  = aws_lb.main.dns_name
+  } : null
+}
+
 output "backend_url" {
   description = "Backend API URL"
-  value       = "http://${aws_lb.main.dns_name}"
+  value       = "https://${aws_lb.main.dns_name}"
 }
 
 output "frontend_url" {
@@ -737,4 +811,9 @@ output "database_endpoint" {
 output "amplify_app_id" {
   description = "Amplify App ID"
   value       = aws_amplify_app.frontend.id
+}
+
+output "custom_domain_url" {
+  description = "Custom domain URL"
+  value       = var.use_custom_domain ? "https://${var.domain_name}" : null
 }
