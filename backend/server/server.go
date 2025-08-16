@@ -60,6 +60,9 @@ func NewServer(db *sqlx.DB, logger *slog.Logger, config *config.Config) *Server 
 }
 
 func (s *Server) setupRoutes() {
+	// Add CORS middleware to main router (covers all endpoints)
+	s.router.Use(s.corsMiddleware)
+	
 	// Add logging middleware
 	s.router.Use(s.loggingMiddleware)
 
@@ -69,8 +72,8 @@ func (s *Server) setupRoutes() {
 	// API routes
 	api := s.router.PathPrefix("/api").Subrouter()
 
-	// Add CORS middleware to API subrouter
-	api.Use(s.corsMiddleware)
+	// CORS middleware is already applied to main router, no need to apply again
+	// api.Use(s.corsMiddleware)
 
 	// User routes (no auth required)
 	api.HandleFunc("/users", s.userHandlers.HandleCreateUser).Methods("POST")
@@ -131,6 +134,14 @@ func (s *Server) initializeHandlers() {
 func (s *Server) corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		origin := r.Header.Get("Origin")
+		
+		// Debug logging
+		s.logger.Info("CORS Middleware",
+			"method", r.Method,
+			"path", r.URL.Path,
+			"origin", origin,
+			"user_agent", r.UserAgent(),
+		)
 
 		// Default allowed origins
 		allowedOrigins := []string{
@@ -146,9 +157,17 @@ func (s *Server) corsMiddleware(next http.Handler) http.Handler {
 				break
 			}
 		}
+		
+		s.logger.Info("CORS Check",
+			"origin", origin,
+			"allowed", originAllowed,
+			"allowed_origins", allowedOrigins,
+		)
 
 		// Always set CORS headers for preflight requests
 		if r.Method == "OPTIONS" {
+			s.logger.Info("Handling OPTIONS preflight request")
+			
 			// For preflight, set all CORS headers
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, PATCH")
 			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept, Origin")
@@ -158,6 +177,9 @@ func (s *Server) corsMiddleware(next http.Handler) http.Handler {
 			if originAllowed {
 				w.Header().Set("Access-Control-Allow-Origin", origin)
 				w.Header().Set("Access-Control-Allow-Credentials", "true")
+				s.logger.Info("Set CORS headers for allowed origin", "origin", origin)
+			} else {
+				s.logger.Warn("Origin not allowed for CORS", "origin", origin)
 			}
 
 			w.WriteHeader(http.StatusOK)
@@ -168,6 +190,7 @@ func (s *Server) corsMiddleware(next http.Handler) http.Handler {
 		if originAllowed {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
 			w.Header().Set("Access-Control-Allow-Credentials", "true")
+			s.logger.Info("Set CORS headers for actual request", "origin", origin)
 		}
 
 		next.ServeHTTP(w, r)
