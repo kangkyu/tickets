@@ -65,7 +65,7 @@ func (s *Server) setupRoutes() {
 	
 	// Add logging middleware
 	s.router.Use(s.loggingMiddleware)
-	
+
 	// Health check endpoint
 	s.router.HandleFunc("/health", s.handleHealth).Methods("GET")
 	
@@ -130,15 +130,40 @@ func (s *Server) initializeHandlers() {
 // CORS middleware
 func (s *Server) corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-		
+		origin := r.Header.Get("Origin")
+
+		// Default allowed origins
+		allowedOrigins := []string{
+			"http://localhost:3000",  // Local development
+			"https://fanmeeting.org", // Production domain
+		}
+
+		// Check if origin is allowed
+		originAllowed := false
+		for _, allowed := range allowedOrigins {
+			if origin == allowed {
+				originAllowed = true
+				break
+			}
+		}
+
+		// Set CORS headers only for allowed origins
+		if originAllowed {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Set("Access-Control-Allow-Credentials", "true")
+		}
+
+		// Set other CORS headers
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, PATCH")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept, Origin")
+		w.Header().Set("Access-Control-Max-Age", "86400")
+
+		// Handle preflight requests
 		if r.Method == "OPTIONS" {
 			w.WriteHeader(http.StatusOK)
 			return
 		}
-		
+
 		next.ServeHTTP(w, r)
 	})
 }

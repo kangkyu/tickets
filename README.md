@@ -4,6 +4,15 @@ Deploy backend first, and then frontend (AWS Amplify)
 
 ```sh
 terraform apply -var-file="terraform.tfvars"
+
+cd backend
+docker build -t 800097198265.dkr.ecr.us-east-1.amazonaws.com/uma-tickets-staging/backend:latest .
+docker push 800097198265.dkr.ecr.us-east-1.amazonaws.com/uma-tickets-staging/backend:latest
+
+aws ecs update-service --cluster uma-tickets-staging-cluster --service uma-tickets-staging-backend --force-new-deployment --region us-east-1
+
+
+# deploys to Amplify frontend automatically
 git push origin master
 ```
 
