@@ -58,7 +58,7 @@ const EventDetails = () => {
           url: window.location.href,
         })
       } catch (error) {
-        console.log('Error sharing:', error)
+        // Silent fail for sharing errors
       }
     } else {
       // Fallback: copy to clipboard
@@ -67,8 +67,8 @@ const EventDetails = () => {
     }
   }
 
-  const isEventPassed = new Date(event.date) < new Date()
-  const isSoldOut = event.availableTickets === 0
+  const isEventPassed = new Date(event.start_time) < new Date()
+  const isSoldOut = event.capacity === 0 // For now, we'll assume all capacity is available
 
   return (
     <div className="space-y-6">
@@ -88,14 +88,12 @@ const EventDetails = () => {
           <div className="flex items-center gap-4 text-gray-600">
             <span className="flex items-center">
               <Calendar className="w-4 h-4 mr-2" />
-              {formatEventDate(event.date)}
+              {formatEventDate(event.start_time)}
             </span>
-            {event.location && (
-              <span className="flex items-center">
-                <MapPin className="w-4 h-4 mr-2" />
-                {event.location}
-              </span>
-            )}
+            <span className="flex items-center">
+              <Clock className="w-4 h-4 mr-2" />
+              {formatEventDate(event.end_time)}
+            </span>
           </div>
         </div>
         
@@ -135,13 +133,6 @@ const EventDetails = () => {
           <div className="space-y-4">
             <h2 className="text-xl font-semibold text-gray-900">About this event</h2>
             <p className="text-gray-700 leading-relaxed">{event.description}</p>
-            
-            {event.additionalInfo && (
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <h3 className="font-medium text-gray-900 mb-2">Additional Information</h3>
-                <p className="text-gray-700">{event.additionalInfo}</p>
-              </div>
-            )}
           </div>
 
           {/* Event Details */}
@@ -151,44 +142,56 @@ const EventDetails = () => {
               <div className="flex items-center p-3 bg-gray-50 rounded-lg">
                 <Calendar className="w-5 h-5 text-uma-600 mr-3" />
                 <div>
-                  <p className="text-sm text-gray-500">Date & Time</p>
-                  <p className="font-medium text-gray-900">{formatEventDate(event.date)}</p>
+                  <p className="text-sm text-gray-500">Start Time</p>
+                  <p className="font-medium text-gray-900">{formatEventDate(event.start_time)}</p>
                 </div>
               </div>
               
-              {event.location && (
-                <div className="flex items-center p-3 bg-gray-50 rounded-lg">
-                  <MapPin className="w-5 h-5 text-uma-600 mr-3" />
-                  <div>
-                    <p className="text-sm text-gray-500">Location</p>
-                    <p className="font-medium text-gray-900">{event.location}</p>
-                  </div>
+              <div className="flex items-center p-3 bg-gray-50 rounded-lg">
+                <Clock className="w-5 h-5 text-uma-600 mr-3" />
+                <div>
+                  <p className="text-sm text-gray-500">End Time</p>
+                  <p className="font-medium text-gray-900">{formatEventDate(event.end_time)}</p>
                 </div>
-              )}
+              </div>
               
               <div className="flex items-center p-3 bg-gray-50 rounded-lg">
                 <Users className="w-5 h-5 text-uma-600 mr-3" />
                 <div>
-                  <p className="text-sm text-gray-500">Available Tickets</p>
-                  <p className="font-medium text-gray-900">{event.availableTickets}</p>
+                  <p className="text-sm text-gray-500">Capacity</p>
+                  <p className="font-medium text-gray-900">{event.capacity}</p>
                 </div>
               </div>
               
-              {event.organizer && (
-                <div className="flex items-center p-3 bg-gray-50 rounded-lg">
-                  <div className="w-5 h-5 bg-uma-600 rounded-full mr-3 flex items-center justify-center">
-                    <span className="text-white text-xs font-bold">
-                      {event.organizer.charAt(0).toUpperCase()}
-                    </span>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-500">Organizer</p>
-                    <p className="font-medium text-gray-900">{event.organizer}</p>
-                  </div>
+              <div className="flex items-center p-3 bg-gray-50 rounded-lg">
+                <div className="w-5 h-5 bg-uma-600 rounded-full mr-3 flex items-center justify-center">
+                  <span className="text-white text-xs font-bold">V</span>
                 </div>
-              )}
+                <div>
+                  <p className="text-sm text-gray-500">Virtual Event</p>
+                  <p className="font-medium text-gray-900">Online Stream</p>
+                </div>
+              </div>
             </div>
           </div>
+
+          {/* Stream URL if available */}
+          {event.stream_url && (
+            <div className="space-y-4">
+              <h2 className="text-xl font-semibold text-gray-900">Stream Information</h2>
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <p className="text-sm text-gray-500 mb-2">Stream URL</p>
+                <a 
+                  href={event.stream_url} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-uma-600 hover:text-uma-700 underline break-all"
+                >
+                  {event.stream_url}
+                </a>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Sidebar - Purchase Card */}
@@ -197,9 +200,9 @@ const EventDetails = () => {
             <div className="space-y-4">
               {/* Price */}
               <div className="text-center">
-                <div className="text-3xl font-bold text-uma-600">{formatPrice(event.price)}</div>
+                <div className="text-3xl font-bold text-uma-600">{formatPrice(event.price_sats)}</div>
                 <div className="text-sm text-gray-500">
-                  ≈ ${formatSatsToUSD(event.price)}
+                  ≈ ${formatSatsToUSD(event.price_sats)}
                 </div>
               </div>
 
@@ -213,9 +216,9 @@ const EventDetails = () => {
                   <span className="inline-block bg-red-100 text-red-800 px-3 py-1 rounded-full text-sm font-medium">
                     Sold Out
                   </span>
-                ) : event.availableTickets <= 5 ? (
+                ) : event.capacity <= 5 ? (
                   <span className="inline-block bg-orange-100 text-orange-800 px-3 py-1 rounded-full text-sm font-medium">
-                    Only {event.availableTickets} tickets left!
+                    Only {event.capacity} tickets left!
                   </span>
                 ) : (
                   <span className="inline-block bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium">
@@ -246,9 +249,7 @@ const EventDetails = () => {
                 <p>• Secure Lightning Network payment</p>
                 <p>• Instant ticket delivery</p>
                 <p>• No additional fees</p>
-                {event.refundPolicy && (
-                  <p>• {event.refundPolicy}</p>
-                )}
+                <p>• Virtual event - join from anywhere</p>
               </div>
             </div>
           </div>

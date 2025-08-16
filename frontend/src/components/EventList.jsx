@@ -1,50 +1,19 @@
-import { useState, useEffect } from 'react'
-import { Search, Calendar, DollarSign } from 'lucide-react'
+import { useState } from 'react'
+import { Search } from 'lucide-react'
 import EventCard from './EventCard'
-import config from '../config/api'
+import { useEvents } from '../hooks/useEvents'
 
 const EventList = () => {
-  const [events, setEvents] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
   const [searchQuery, setSearchQuery] = useState('')
-
-  useEffect(() => {
-    fetchEvents()
-  }, [])
-
-  const fetchEvents = async () => {
-    try {
-      setLoading(true)
-      setError(null)
-      
-      // Try to fetch from API first
-      const response = await fetch(`${config.apiUrl}/api/events`)
-      if (response.ok) {
-        const responseData = await response.json()
-        // Extract events from the data property of the response
-        const eventsData = responseData.data || responseData
-        // Ensure data is an array before setting it
-        setEvents(Array.isArray(eventsData) ? eventsData : [])
-      } else {
-        throw new Error('Failed to fetch events')
-      }
-    } catch (err) {
-      console.error('Error fetching events:', err.message)
-      setError('Failed to load events. Please try again later.')
-      setEvents([])
-    } finally {
-      setLoading(false)
-    }
-  }
+  const { data: events = [], isLoading, error } = useEvents()
 
   // Filter events based on search query
-  const filteredEvents = (Array.isArray(events) ? events : []).filter(event =>
+  const filteredEvents = events.filter(event =>
     event.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
     event.description.toLowerCase().includes(searchQuery.toLowerCase())
   )
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="flex justify-center items-center h-64">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
@@ -76,7 +45,7 @@ const EventList = () => {
                 Error Loading Events
               </h3>
               <div className="mt-2 text-sm text-red-700">
-                <p>{error}</p>
+                <p>{error.message || 'Failed to load events. Please try again later.'}</p>
               </div>
             </div>
           </div>
@@ -112,7 +81,7 @@ const EventList = () => {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {Array.isArray(filteredEvents) && filteredEvents.map((event) => (
+          {filteredEvents.map((event) => (
             <EventCard key={event.id} event={event} />
           ))}
         </div>

@@ -22,7 +22,6 @@ const PaymentStatus = () => {
     isExpired
   } = usePaymentPolling(ticket?.invoiceId, (status) => {
     // Callback when payment status changes
-    console.log('Payment status changed:', status)
   })
 
   // Countdown timer for payment
@@ -200,7 +199,7 @@ const PaymentStatus = () => {
           <QRCodeDisplay
             bolt11Invoice={ticket.invoice}
             amount={ticket.price}
-            onCopy={(invoice) => console.log('Invoice copied:', invoice)}
+            onCopy={(invoice) => copyToClipboard(invoice)}
           />
         </div>
       )}

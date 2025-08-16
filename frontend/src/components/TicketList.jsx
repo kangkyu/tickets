@@ -5,10 +5,8 @@ import { useUserTickets } from '../hooks/useTickets'
 import { formatEventDate, formatPrice, formatSatsToUSD } from '../utils/formatters'
 
 const TicketList = () => {
-  const [selectedStatus, setSelectedStatus] = useState('all')
-  
-  // Mock user ID - in real app this would come from auth context
-  const userId = 'user123'
+  // TODO: Get user ID from auth context when authentication is implemented
+  const userId = 1
   const { data: tickets = [], isLoading, error } = useUserTickets(userId)
 
   // Filter tickets by status

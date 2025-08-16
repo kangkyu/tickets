@@ -15,7 +15,7 @@ const EventCard = ({ event }) => {
     stream_url
   } = event
 
-  // Calculate available tickets (assuming all tickets are available for demo)
+  // For now, assume all capacity is available (no ticket counting implemented yet)
   const availableTickets = capacity
   const price = price_sats
   const date = start_time

@@ -95,12 +95,16 @@ export const eventsAPI = {
     if (filters.maxPrice) params.append('maxPrice', filters.maxPrice)
     if (filters.category) params.append('category', filters.category)
     
-    return api.get(`/api/events?${params.toString()}`)
+    const response = await api.get(`/api/events?${params.toString()}`)
+    // Extract the actual events data from the response wrapper
+    return response.data || response
   },
 
   // Get single event by ID
   getById: async (eventId) => {
-    return api.get(`/api/events/${eventId}`)
+    const response = await api.get(`/api/events/${eventId}`)
+    // Extract the actual event data from the response wrapper
+    return response.data || response
   },
 
   // Search events
