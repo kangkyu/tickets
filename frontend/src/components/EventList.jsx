@@ -21,58 +21,25 @@ const EventList = () => {
       // Try to fetch from API first
       const response = await fetch(`${config.apiUrl}/api/events`)
       if (response.ok) {
-        const data = await response.json()
-        setEvents(data)
+        const responseData = await response.json()
+        // Extract events from the data property of the response
+        const eventsData = responseData.data || responseData
+        // Ensure data is an array before setting it
+        setEvents(Array.isArray(eventsData) ? eventsData : [])
       } else {
-        throw new Error('API not available')
+        throw new Error('Failed to fetch events')
       }
     } catch (err) {
-      console.log('API not available, showing sample data:', err.message)
-      setError('API not available - showing sample data')
-      
-      // Set sample data for demonstration
-      setEvents([
-        {
-          id: 1,
-          title: 'Bitcoin Conference 2024',
-          description: 'The biggest Bitcoin conference of the year with world-renowned speakers and networking opportunities.',
-          start_time: '2024-06-15T10:00:00Z',
-          end_time: '2024-06-15T18:00:00Z',
-          price_sats: 50000,
-          capacity: 1000,
-          is_active: true,
-          stream_url: 'https://stream.example.com/bitcoin2024'
-        },
-        {
-          id: 2,
-          title: 'Lightning Network Workshop',
-          description: 'Learn about Lightning Network development and build your first Lightning application.',
-          start_time: '2024-07-01T14:00:00Z',
-          end_time: '2024-07-01T16:00:00Z',
-          price_sats: 25000,
-          capacity: 100,
-          is_active: true,
-          stream_url: 'https://stream.example.com/lightning-workshop'
-        },
-        {
-          id: 3,
-          title: 'UMA Protocol Deep Dive',
-          description: 'Explore the Universal Money Address protocol and its applications in modern payment systems.',
-          start_time: '2024-08-10T09:00:00Z',
-          end_time: '2024-08-10T17:00:00Z',
-          price_sats: 75000,
-          capacity: 500,
-          is_active: true,
-          stream_url: 'https://stream.example.com/uma-deep-dive'
-        }
-      ])
+      console.error('Error fetching events:', err.message)
+      setError('Failed to load events. Please try again later.')
+      setEvents([])
     } finally {
       setLoading(false)
     }
   }
 
   // Filter events based on search query
-  const filteredEvents = events.filter(event =>
+  const filteredEvents = (Array.isArray(events) ? events : []).filter(event =>
     event.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
     event.description.toLowerCase().includes(searchQuery.toLowerCase())
   )
@@ -95,21 +62,21 @@ const EventList = () => {
         </p>
       </div>
 
-      {/* API Status Notice */}
+      {/* Error Display */}
       {error && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
           <div className="flex">
             <div className="flex-shrink-0">
-              <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+              <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
               </svg>
             </div>
             <div className="ml-3">
-              <h3 className="text-sm font-medium text-yellow-800">
-                Demo Mode
+              <h3 className="text-sm font-medium text-red-800">
+                Error Loading Events
               </h3>
-              <div className="mt-2 text-sm text-yellow-700">
-                <p>Backend API is not available. Showing sample events for demonstration purposes.</p>
+              <div className="mt-2 text-sm text-red-700">
+                <p>{error}</p>
               </div>
             </div>
           </div>
@@ -145,7 +112,7 @@ const EventList = () => {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredEvents.map((event) => (
+          {Array.isArray(filteredEvents) && filteredEvents.map((event) => (
             <EventCard key={event.id} event={event} />
           ))}
         </div>
