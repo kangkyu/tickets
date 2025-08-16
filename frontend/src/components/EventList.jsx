@@ -19,7 +19,7 @@ const EventList = () => {
       setError(null)
       
       // Try to fetch from API first
-      const response = await fetch(`${config.apiUrl}/events`)
+      const response = await fetch(`${config.apiUrl}/api/events`)
       if (response.ok) {
         const data = await response.json()
         setEvents(data)
