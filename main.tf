@@ -44,7 +44,7 @@ variable "app_name" {
 variable "domain_name" {
   description = "Domain name for the application"
   type        = string
-  default     = "fanmeeting.org" # Updated default
+  default     = "fanmeeting.org"
 }
 
 variable "use_custom_domain" {
@@ -668,159 +668,6 @@ resource "random_password" "jwt_secret" {
   special = true
 }
 
-# ACM Certificate for CloudFront (must be in us-east-1)
-resource "aws_acm_certificate" "cloudfront" {
-  count       = var.use_custom_domain ? 1 : 0
-  provider    = aws.us_east_1
-  domain_name = var.domain_name
-
-  validation_method = "DNS"
-
-  lifecycle {
-    create_before_destroy = true
-    # Prevent destruction while CloudFront is using it
-    prevent_destroy = false
-  }
-
-  tags = {
-    Name        = "${var.app_name}-cloudfront-cert"
-    Environment = var.environment
-  }
-}
-
-# CloudFront Distribution
-resource "aws_cloudfront_distribution" "main" {
-  count      = var.use_custom_domain ? 1 : 0
-
-  # Frontend origin (Amplify)
-  origin {
-    domain_name = "${var.main_branch_name}.${aws_amplify_app.frontend.default_domain}"
-    origin_id   = "amplify-origin"
-
-    custom_origin_config {
-      http_port              = 80
-      https_port             = 443
-      origin_protocol_policy = "https-only"
-      origin_ssl_protocols   = ["TLSv1.2"]
-    }
-  }
-
-  # Backend origin (ALB)
-  origin {
-    domain_name = aws_lb.main.dns_name
-    origin_id   = "fargate-origin"
-
-    custom_origin_config {
-      http_port              = 80
-      https_port             = 443
-      origin_protocol_policy = "http-only"
-      origin_ssl_protocols   = ["TLSv1.2"]
-    }
-  }
-
-  enabled             = true
-  is_ipv6_enabled     = true
-  default_root_object = "index.html"
-
-  aliases = [var.domain_name]
-
-  # API routes - no caching for backend
-  ordered_cache_behavior {
-    path_pattern     = "/api/*"
-    allowed_methods  = ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"]
-    cached_methods   = ["GET", "HEAD", "OPTIONS"]
-    target_origin_id = "fargate-origin"
-
-    forwarded_values {
-      query_string = true
-      headers      = ["*"]
-
-      cookies {
-        forward = "all"
-      }
-    }
-
-    viewer_protocol_policy = "redirect-to-https"
-    min_ttl                = 0
-    default_ttl            = 0
-    max_ttl                = 0
-    compress               = false
-  }
-
-  # Health check route - no caching
-  ordered_cache_behavior {
-    path_pattern     = "/health"
-    allowed_methods  = ["GET", "HEAD", "OPTIONS"]
-    cached_methods   = ["GET", "HEAD", "OPTIONS"]
-    target_origin_id = "fargate-origin"
-
-    forwarded_values {
-      query_string = false
-
-      cookies {
-        forward = "none"
-      }
-    }
-
-    viewer_protocol_policy = "redirect-to-https"
-    min_ttl                = 0
-    default_ttl            = 0
-    max_ttl                = 0
-  }
-
-  # Default behavior - frontend with caching
-  default_cache_behavior {
-    allowed_methods  = ["GET", "HEAD", "OPTIONS"]
-    cached_methods   = ["GET", "HEAD", "OPTIONS"]
-    target_origin_id = "amplify-origin"
-
-    forwarded_values {
-      query_string = false
-      headers      = ["Host"]
-
-      cookies {
-        forward = "none"
-      }
-    }
-
-    viewer_protocol_policy = "redirect-to-https"
-    min_ttl                = 0
-    default_ttl            = 3600
-    max_ttl                = 86400
-    compress               = true
-  }
-
-  # Custom error pages for SPA
-  custom_error_response {
-    error_code         = 404
-    response_code      = 200
-    response_page_path = "/index.html"
-  }
-
-  custom_error_response {
-    error_code         = 403
-    response_code      = 200
-    response_page_path = "/index.html"
-  }
-
-  restrictions {
-    geo_restriction {
-      restriction_type = "none"
-    }
-  }
-
-  viewer_certificate {
-    acm_certificate_arn      = aws_acm_certificate.cloudfront[0].arn
-    minimum_protocol_version = "TLSv1.2_2021"
-    ssl_support_method       = "sni-only"
-  }
-
-  tags = {
-    Name        = "${var.app_name}-cloudfront"
-    Environment = var.environment
-  }
-}
-
 # AWS Amplify App - Simplified
 resource "aws_amplify_app" "frontend" {
   name         = "${var.app_name}-frontend"
@@ -866,12 +713,11 @@ EOT
 resource "aws_amplify_branch" "main" {
   app_id      = aws_amplify_app.frontend.id
   branch_name = var.main_branch_name
-
   enable_auto_build = true
 
-  # Updated environment variables to use CloudFront domain when available
+  # Updated environment variables for the new setup
   environment_variables = {
-    VITE_API_BASE_URL = var.use_custom_domain ? "https://${var.domain_name}/api" : "http://${aws_lb.main.dns_name}/api"
+    VITE_API_BASE_URL = var.use_custom_domain ? "https://api.${var.domain_name}" : "http://${aws_lb.main.dns_name}"
     NODE_ENV          = "production"
   }
 
@@ -881,7 +727,71 @@ resource "aws_amplify_branch" "main" {
   }
 }
 
-# Outputs
+# Add custom domain to Amplify app
+resource "aws_amplify_domain_association" "main" {
+  count       = var.use_custom_domain ? 1 : 0
+  app_id      = aws_amplify_app.frontend.id
+  domain_name = var.domain_name
+
+  # Add subdomain for API if needed
+  sub_domain {
+    branch_name = aws_amplify_branch.main.branch_name
+    prefix      = ""  # Root domain
+  }
+}
+
+# ACM certificate for ALB (in your main region)
+resource "aws_acm_certificate" "alb" {
+  count       = var.use_custom_domain ? 1 : 0
+  domain_name = "api.${var.domain_name}"  # api.fanmeeting.org
+
+  validation_method = "DNS"
+
+  lifecycle {
+    create_before_destroy = true
+  }
+
+  tags = {
+    Name        = "${var.app_name}-alb-cert"
+    Environment = var.environment
+  }
+}
+
+# HTTPS listener for ALB
+resource "aws_lb_listener" "https" {
+  count             = var.use_custom_domain ? 1 : 0
+  load_balancer_arn = aws_lb.main.arn
+  port              = "443"
+  protocol          = "HTTPS"
+  ssl_policy        = "ELBSecurityPolicy-TLS-1-2-2017-01"
+  certificate_arn   = aws_acm_certificate.alb[0].arn
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.backend.arn
+  }
+}
+
+output "amplify_dns_record" {
+  description = "DNS record to add at Name.com for Amplify"
+  value = var.use_custom_domain ? {
+    message = "Add this CNAME record at Name.com:"
+    type    = "CNAME"
+    name    = var.domain_name
+    target  = aws_amplify_domain_association.main[0].certificate_verification_dns_record
+  } : null
+}
+
+output "backend_dns_record" {
+  description = "DNS record for backend API"
+  value = var.use_custom_domain ? {
+    message = "Add this CNAME record at Name.com:"
+    type    = "CNAME"
+    name    = "api.${var.domain_name}"
+    target  = aws_lb.main.dns_name
+  } : null
+}
+
 output "backend_url" {
   description = "Backend API URL"
   value       = "https://${aws_lb.main.dns_name}"
@@ -901,12 +811,6 @@ output "database_endpoint" {
 output "amplify_app_id" {
   description = "Amplify App ID"
   value       = aws_amplify_app.frontend.id
-}
-
-# New CloudFront outputs
-output "cloudfront_domain_name" {
-  description = "CloudFront distribution domain name"
-  value       = var.use_custom_domain ? aws_cloudfront_distribution.main[0].domain_name : null
 }
 
 output "custom_domain_url" {
