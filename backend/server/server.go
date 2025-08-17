@@ -2,7 +2,6 @@ package server
 
 import (
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/gorilla/handlers"
@@ -62,9 +61,6 @@ func NewServer(db *sqlx.DB, logger *slog.Logger, config *config.Config) *Server 
 }
 
 func (s *Server) setupRoutes() {
-	// Add trailing slash redirect middleware
-	s.router.Use(s.trailingSlashMiddleware)
-	
 	// Add CORS middleware to main router (covers all endpoints)
 	s.router.Use(s.corsMiddleware)
 	
@@ -233,26 +229,4 @@ func (rw *responseWriter) WriteHeader(code int) {
 
 func (rw *responseWriter) Write(b []byte) (int, error) {
 	return rw.ResponseWriter.Write(b)
-}
-
-// Trailing slash middleware - redirects /path/ to /path
-func (s *Server) trailingSlashMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		path := r.URL.Path
-		
-		// Skip root path and API paths
-		if path == "/" || strings.HasPrefix(path, "/api") {
-			next.ServeHTTP(w, r)
-			return
-		}
-		
-		// If path ends with / and is not root, redirect to non-trailing slash
-		if strings.HasSuffix(path, "/") && len(path) > 1 {
-			redirectPath := strings.TrimSuffix(path, "/")
-			http.Redirect(w, r, redirectPath, http.StatusMovedPermanently)
-			return
-		}
-		
-		next.ServeHTTP(w, r)
-	})
 }

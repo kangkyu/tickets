@@ -1,4 +1,4 @@
-import { Routes, Route } from 'react-router-dom'
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { AuthProvider } from './contexts/AuthContext'
 import Layout from './components/Layout'
 import EventList from './components/EventList'
@@ -9,33 +9,49 @@ import TicketList from './components/TicketList'
 import Login from './components/Login'
 import ProtectedRoute from './components/ProtectedRoute'
 
+// Component to normalize paths and redirect if needed
+function PathNormalizer({ children }) {
+  const location = useLocation()
+  const path = location.pathname
+  
+  // If path ends with / and is not root, redirect to non-trailing slash
+  if (path.endsWith('/') && path !== '/') {
+    const normalizedPath = path.slice(0, -1)
+    return <Navigate to={normalizedPath} replace />
+  }
+  
+  return children
+}
+
 function App() {
   return (
     <AuthProvider>
       <Layout>
-        <Routes>
-          {/* Public routes */}
-          <Route path="/" element={<EventList />} />
-          <Route path="/events/:eventId" element={<EventDetails />} />
-          <Route path="/login" element={<Login />} />
-          
-          {/* Protected routes - require authentication */}
-          <Route path="/events/:eventId/purchase" element={
-            <ProtectedRoute>
-              <TicketPurchase />
-            </ProtectedRoute>
-          } />
-          <Route path="/tickets/:ticketId/payment" element={
-            <ProtectedRoute>
-              <PaymentStatus />
-            </ProtectedRoute>
-          } />
-          <Route path="/tickets" element={
-            <ProtectedRoute>
-              <TicketList />
-            </ProtectedRoute>
-          } />
-        </Routes>
+        <PathNormalizer>
+          <Routes>
+            {/* Public routes */}
+            <Route path="/" element={<EventList />} />
+            <Route path="/events/:eventId" element={<EventDetails />} />
+            <Route path="/login" element={<Login />} />
+            
+            {/* Protected routes - require authentication */}
+            <Route path="/events/:eventId/purchase" element={
+              <ProtectedRoute>
+                <TicketPurchase />
+              </ProtectedRoute>
+            } />
+            <Route path="/tickets/:ticketId/payment" element={
+              <ProtectedRoute>
+                <PaymentStatus />
+              </ProtectedRoute>
+            } />
+            <Route path="/tickets" element={
+              <ProtectedRoute>
+                <TicketList />
+              </ProtectedRoute>
+            } />
+          </Routes>
+        </PathNormalizer>
       </Layout>
     </AuthProvider>
   )
