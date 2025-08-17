@@ -4,11 +4,12 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/jmoiron/sqlx"
 	"log/slog"
 	"tickets-by-uma/config"
-	"tickets-by-uma/handlers"
+	"tickets-by-uma/apphandlers"
 	"tickets-by-uma/middleware"
 	"tickets-by-uma/repositories"
 	"tickets-by-uma/services"
@@ -24,10 +25,10 @@ type Server struct {
 	paymentRepo    repositories.PaymentRepository
 	umaService     services.UMAService
 	router         *mux.Router
-	userHandlers   *handlers.UserHandlers
-	eventHandlers  *handlers.EventHandlers
-	ticketHandlers *handlers.TicketHandlers
-	paymentHandlers *handlers.PaymentHandlers
+	userHandlers   *apphandlers.UserHandlers
+	eventHandlers  *apphandlers.EventHandlers
+	ticketHandlers *apphandlers.TicketHandlers
+	paymentHandlers *apphandlers.PaymentHandlers
 }
 
 func NewServer(db *sqlx.DB, logger *slog.Logger, config *config.Config) *Server {
@@ -124,77 +125,23 @@ func (s *Server) setupRoutes() {
 
 // Initialize handlers
 func (s *Server) initializeHandlers() {
-	s.userHandlers = handlers.NewUserHandlers(s.userRepo, s.logger, s.config.JWTSecret)
-	s.eventHandlers = handlers.NewEventHandlers(s.eventRepo, s.logger)
-	s.ticketHandlers = handlers.NewTicketHandlers(s.ticketRepo, s.eventRepo, s.paymentRepo, s.umaService, s.logger)
-	s.paymentHandlers = handlers.NewPaymentHandlers(s.paymentRepo, s.ticketRepo, s.umaService, s.logger)
+	s.userHandlers = apphandlers.NewUserHandlers(s.userRepo, s.logger, s.config.JWTSecret)
+	s.eventHandlers = apphandlers.NewEventHandlers(s.eventRepo, s.logger)
+	s.ticketHandlers = apphandlers.NewTicketHandlers(s.ticketRepo, s.eventRepo, s.paymentRepo, s.umaService, s.logger)
+	s.paymentHandlers = apphandlers.NewPaymentHandlers(s.paymentRepo, s.ticketRepo, s.umaService, s.logger)
 }
 
 // CORS middleware
 func (s *Server) corsMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		origin := r.Header.Get("Origin")
-		
-		// Debug logging
-		s.logger.Info("CORS Middleware",
-			"method", r.Method,
-			"path", r.URL.Path,
-			"origin", origin,
-			"user_agent", r.UserAgent(),
-		)
-
-		// Default allowed origins
-		allowedOrigins := []string{
+	return handlers.CORS(
+		handlers.AllowedOrigins([]string{
 			"http://localhost:3000",  // Local development
 			"https://fanmeeting.org", // Production domain
-		}
-
-		// Check if origin is allowed
-		originAllowed := false
-		for _, allowed := range allowedOrigins {
-			if origin == allowed {
-				originAllowed = true
-				break
-			}
-		}
-		
-		s.logger.Info("CORS Check",
-			"origin", origin,
-			"allowed", originAllowed,
-			"allowed_origins", allowedOrigins,
-		)
-
-		// Always set CORS headers for preflight requests
-		if r.Method == "OPTIONS" {
-			s.logger.Info("Handling OPTIONS preflight request")
-			
-			// For preflight, set all CORS headers
-			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, PATCH")
-			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept, Origin")
-			w.Header().Set("Access-Control-Max-Age", "86400")
-
-			// Set origin-specific headers only for allowed origins
-			if originAllowed {
-				w.Header().Set("Access-Control-Allow-Origin", origin)
-				w.Header().Set("Access-Control-Allow-Credentials", "true")
-				s.logger.Info("Set CORS headers for allowed origin", "origin", origin)
-			} else {
-				s.logger.Warn("Origin not allowed for CORS", "origin", origin)
-			}
-
-			w.WriteHeader(http.StatusOK)
-			return
-		}
-
-		// For actual requests, set CORS headers only for allowed origins
-		if originAllowed {
-			w.Header().Set("Access-Control-Allow-Origin", origin)
-			w.Header().Set("Access-Control-Allow-Credentials", "true")
-			s.logger.Info("Set CORS headers for actual request", "origin", origin)
-		}
-
-		next.ServeHTTP(w, r)
-	})
+		}),
+		handlers.AllowedMethods([]string{"GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"}),
+		handlers.AllowedHeaders([]string{"Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin"}),
+		handlers.AllowCredentials(),
+	)(next)
 }
 
 // Logging middleware
