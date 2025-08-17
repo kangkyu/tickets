@@ -52,6 +52,7 @@ func NewServer(db *sqlx.DB, logger *slog.Logger, config *config.Config) *Server 
 		config.LightsparkClientSecret,
 		config.LightsparkEndpoint,
 		config.LightsparkNodeID,
+		config.LightsparkNodePassword,
 		logger,
 	)
 

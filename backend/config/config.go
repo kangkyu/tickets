@@ -12,6 +12,7 @@ type Config struct {
 	LightsparkClientSecret string
 	LightsparkEndpoint     string
 	LightsparkNodeID       string
+	LightsparkNodePassword string
 	JWTSecret              string
 	AdminEmails            []string
 }
@@ -24,6 +25,7 @@ func LoadConfig() *Config {
 		LightsparkClientSecret: getEnv("LIGHTSPARK_CLIENT_SECRET", ""),
 		LightsparkEndpoint:     getEnv("LIGHTSPARK_ENDPOINT", "api.lightspark.com"),
 		LightsparkNodeID:       getEnv("LIGHTSPARK_NODE_ID", ""),
+		LightsparkNodePassword: getEnv("LIGHTSPARK_TEST_NODE_PASSWORD", ""),
 		JWTSecret:              getEnv("JWT_SECRET", "your-secret-key-change-in-production"),
 		AdminEmails:            strings.Split(getEnv("ADMIN_EMAILS", "admin@example.com"), ","),
 	}
