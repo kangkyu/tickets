@@ -68,6 +68,19 @@ func (r *ticketRepository) GetByUserID(userID int) ([]models.Ticket, error) {
 	return tickets, err
 }
 
+func (r *ticketRepository) GetByInvoiceID(invoiceID string) (*models.Ticket, error) {
+	ticket := &models.Ticket{}
+	query := `SELECT * FROM tickets WHERE invoice_id = $1`
+	err := r.db.Get(ticket, query, invoiceID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return ticket, nil
+}
+
 func (r *ticketRepository) Update(ticket *models.Ticket) error {
 	query := `
 		UPDATE tickets 

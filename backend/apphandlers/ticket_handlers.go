@@ -350,6 +350,7 @@ func (h *TicketHandlers) HandleGetUserTickets(w http.ResponseWriter, r *http.Req
 		
 		ticketDetail := map[string]interface{}{
 			"id":             ticket.ID,
+			"user_id":        ticket.UserID,
 			"ticket_code":    ticket.TicketCode,
 			"payment_status": ticket.PaymentStatus,
 			"created_at":     ticket.CreatedAt,
@@ -358,7 +359,9 @@ func (h *TicketHandlers) HandleGetUserTickets(w http.ResponseWriter, r *http.Req
 				"id":          event.ID,
 				"title":       event.Title,
 				"start_time":  event.StartTime,
+				"end_time":    event.EndTime,
 				"stream_url":  event.StreamURL,
+				"price_sats":  event.PriceSats,
 			},
 		}
 		ticketDetails = append(ticketDetails, ticketDetail)
@@ -367,6 +370,58 @@ func (h *TicketHandlers) HandleGetUserTickets(w http.ResponseWriter, r *http.Req
 	middleware.WriteJSON(w, http.StatusOK, models.SuccessResponse{
 		Message: "User tickets retrieved successfully",
 		Data:    ticketDetails,
+	})
+}
+
+// HandleUMAPaymentCallback processes UMA payment callbacks
+func (h *TicketHandlers) HandleUMAPaymentCallback(w http.ResponseWriter, r *http.Request) {
+	var req models.UMACallbackRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		middleware.WriteError(w, http.StatusBadRequest, "Invalid callback request body")
+		return
+	}
+	
+	h.logger.Info("Processing UMA payment callback", 
+		"payment_hash", req.PaymentHash,
+		"status", req.Status,
+		"invoice_id", req.InvoiceID)
+	
+	// Process the UMA callback
+	if err := h.umaService.HandleUMACallback(req.PaymentHash, req.Status); err != nil {
+		h.logger.Error("Failed to process UMA callback", "error", err)
+		middleware.WriteError(w, http.StatusInternalServerError, "Failed to process payment callback")
+		return
+	}
+	
+	// Update ticket status based on payment status
+	if req.Status == "paid" {
+		// Find ticket by invoice ID and update status
+		ticket, err := h.ticketRepo.GetByInvoiceID(req.InvoiceID)
+		if err != nil {
+			h.logger.Error("Failed to find ticket for invoice", "invoice_id", req.InvoiceID, "error", err)
+		} else if ticket != nil {
+			// Update ticket status to paid
+			ticket.PaymentStatus = "paid"
+			now := time.Now()
+			ticket.PaidAt = &now
+			
+			if err := h.ticketRepo.Update(ticket); err != nil {
+				h.logger.Error("Failed to update ticket status", "ticket_id", ticket.ID, "error", err)
+			}
+			
+			// Update payment record
+			payment, err := h.paymentRepo.GetByInvoiceID(req.InvoiceID)
+			if err == nil && payment != nil {
+				payment.Status = "paid"
+				payment.PaidAt = &now
+				h.paymentRepo.Update(payment)
+			}
+		}
+	}
+	
+	middleware.WriteJSON(w, http.StatusOK, models.SuccessResponse{
+		Message: "Payment callback processed successfully",
+		Data:    map[string]string{"status": "processed"},
 	})
 }
 

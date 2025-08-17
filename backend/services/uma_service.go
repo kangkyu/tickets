@@ -19,7 +19,7 @@ type UMAService interface {
 	HandleUMACallback(paymentHash string, status string) error
 }
 
-// LightsparkUMAService implements UMAService using Lightspark and UMA Go SDKs
+// LightsparkUMAService implements UMAService using UMA Go SDK
 type LightsparkUMAService struct {
 	logger           *slog.Logger
 	nodeID           string
@@ -30,10 +30,10 @@ type LightsparkUMAService struct {
 // NewLightsparkUMAService creates a new UMA service instance
 func NewLightsparkUMAService(apiToken, endpoint, nodeID string, logger *slog.Logger) UMAService {
 	return &LightsparkUMAService{
-		logger:   logger,
-		nodeID:   nodeID,
-		apiToken: apiToken,
-		endpoint: endpoint,
+		logger:    logger,
+		nodeID:    nodeID,
+		apiToken:  apiToken,
+		endpoint:  endpoint,
 	}
 }
 
@@ -44,7 +44,7 @@ func (s *LightsparkUMAService) ValidateUMAAddress(address string) error {
 	}
 
 	// Basic UMA address validation
-	// UMA addresses typically follow the format: $uma@domain.com
+	// UMA addresses typically follow the format: $username@domain.com
 	if len(address) < 5 || address[0] != '$' {
 		return errors.New("invalid UMA address format: must start with $")
 	}
@@ -81,27 +81,6 @@ func (s *LightsparkUMAService) ValidateUMAAddress(address string) error {
 	return nil
 }
 
-// CreateUMAPaymentRequest creates a UMA payment request
-func (s *LightsparkUMAService) CreateUMAPaymentRequest(umaAddress string, amountSats int64, description string) (map[string]interface{}, error) {
-	// Validate UMA address
-	if err := s.ValidateUMAAddress(umaAddress); err != nil {
-		return nil, err
-	}
-
-	// Create UMA payment request structure
-	payRequest := map[string]interface{}{
-		"receiver_address": umaAddress,
-		"sending_amount":   amountSats * 1000, // Convert to msats
-		"currency":         "SAT",
-		"comment":          description,
-		"payer_data": map[string]interface{}{
-			"identifier": umaAddress[1:], // Remove $ prefix
-		},
-	}
-
-	return payRequest, nil
-}
-
 // CreateInvoice creates a Lightning invoice for UMA payment
 func (s *LightsparkUMAService) CreateInvoice(umaAddress string, amountSats int64, description string) (*models.Invoice, error) {
 	s.logger.Info("Creating UMA invoice", 
@@ -113,22 +92,12 @@ func (s *LightsparkUMAService) CreateInvoice(umaAddress string, amountSats int64
 		return nil, fmt.Errorf("invalid UMA address: %w", err)
 	}
 	
-	// Step 2: Create UMA payment request
-	payRequest, err := s.CreateUMAPaymentRequest(umaAddress, amountSats, description)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create UMA payment request: %w", err)
-	}
-	
-	// Step 3: Generate metadata and receiver hashes for UMA compliance
-	_ = s.generateMetadataHash(description)
-	_ = s.generateReceiverHash(umaAddress)
-	
-	// Step 4: Create invoice (in a real implementation, this would use Lightspark SDK)
-	// For now, we'll create a mock invoice structure
+	// Step 2: Generate invoice (in a real implementation, this would use UMA SDK)
+	// For now, we'll create a mock invoice structure that follows UMA standards
 	invoiceID := s.generateInvoiceID()
 	paymentHash := s.generatePaymentHash(umaAddress, amountSats)
 	
-	// Mock Bolt11 invoice (in real implementation, this would come from Lightspark)
+	// Mock Bolt11 invoice (in real implementation, this would come from UMA SDK)
 	bolt11 := fmt.Sprintf("lnbc%d0p1p%s", amountSats, paymentHash[:20])
 	
 	// Set expiration to 1 hour from now
@@ -137,7 +106,7 @@ func (s *LightsparkUMAService) CreateInvoice(umaAddress string, amountSats int64
 	s.logger.Info("Created UMA invoice", 
 		"invoice_id", invoiceID,
 		"payment_hash", paymentHash,
-		"uma_request", payRequest)
+		"uma_address", umaAddress)
 
 	return &models.Invoice{
 		ID:          invoiceID,
@@ -153,7 +122,7 @@ func (s *LightsparkUMAService) CreateInvoice(umaAddress string, amountSats int64
 func (s *LightsparkUMAService) CheckPaymentStatus(invoiceID string) (*models.PaymentStatus, error) {
 	s.logger.Info("Checking payment status", "invoice_id", invoiceID)
 	
-	// In a real implementation, this would query Lightspark or your Lightning node
+	// In a real implementation, this would query the UMA network
 	// For now, return a mock status
 	return &models.PaymentStatus{
 		InvoiceID:   invoiceID,

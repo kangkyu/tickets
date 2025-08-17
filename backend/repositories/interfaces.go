@@ -32,6 +32,7 @@ type TicketRepository interface {
 	GetByTicketCode(ticketCode string) (*models.Ticket, error)
 	GetByEventID(eventID int) ([]models.Ticket, error)
 	GetByUserID(userID int) ([]models.Ticket, error)
+	GetByInvoiceID(invoiceID string) (*models.Ticket, error)
 	Update(ticket *models.Ticket) error
 	UpdatePaymentStatus(id int, status string) error
 	GetPendingTickets() ([]models.Ticket, error)

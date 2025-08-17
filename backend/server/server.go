@@ -89,6 +89,7 @@ func (s *Server) setupRoutes() {
 	api.HandleFunc("/tickets/purchase", s.ticketHandlers.HandlePurchaseTicket).Methods("POST", "OPTIONS")
 	api.HandleFunc("/tickets/{id:[0-9]+}/status", s.ticketHandlers.HandleTicketStatus).Methods("GET", "OPTIONS")
 	api.HandleFunc("/tickets/validate", s.ticketHandlers.HandleValidateTicket).Methods("POST", "OPTIONS")
+	api.HandleFunc("/tickets/uma-callback", s.ticketHandlers.HandleUMAPaymentCallback).Methods("POST", "OPTIONS")
 
 	// Payment webhook (no auth required)
 	api.HandleFunc("/webhooks/payment", s.paymentHandlers.HandlePaymentWebhook).Methods("POST", "OPTIONS")

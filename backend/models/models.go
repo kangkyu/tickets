@@ -137,3 +137,13 @@ type SuccessResponse struct {
 	Message string      `json:"message"`
 	Data    interface{} `json:"data,omitempty"`
 }
+
+// UMACallbackRequest represents a UMA payment callback
+type UMACallbackRequest struct {
+	PaymentHash string `json:"payment_hash"`
+	Status      string `json:"status"`
+	InvoiceID   string `json:"invoice_id"`
+	AmountSats  int64  `json:"amount_sats,omitempty"`
+	Timestamp   int64  `json:"timestamp,omitempty"`
+	Signature   string `json:"signature,omitempty"`
+}
