@@ -6,31 +6,31 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"tickets-by-uma/models"
-	
+
 	"github.com/lightsparkdev/go-sdk/services"
 )
 
 // UMAService defines the interface for UMA payment operations
 type UMAService interface {
-	CreateInvoice(umaAddress string, amountSats int64, description string) (*models.Invoice, error)
+	CreateUMARequest(umaAddress string, amountSats int64, description string) (*models.Invoice, error)
 	CheckPaymentStatus(invoiceID string) (*models.PaymentStatus, error)
 	ValidateUMAAddress(address string) error
 	HandleUMACallback(paymentHash string, status string) error
-	CreateRealLightningInvoice(amountSats int64, description string) (*models.Invoice, error)
 }
 
 // LightsparkUMAService implements UMAService using real Lightning Network
 type LightsparkUMAService struct {
-	logger           *slog.Logger
-	nodeID           string
-	nodePassword     string
-	clientID         string
-	clientSecret     string
-	endpoint         string
-	client           *services.LightsparkClient
+	logger       *slog.Logger
+	nodeID       string
+	nodePassword string
+	clientID     string
+	clientSecret string
+	endpoint     string
+	client       *services.LightsparkClient
 }
 
 // NewLightsparkUMAService creates a new UMA service instance
@@ -38,7 +38,7 @@ func NewLightsparkUMAService(clientID, clientSecret, endpoint, nodeID, nodePassw
 	// Create Lightspark client - SDK expects full HTTPS URL
 	endpointURL := fmt.Sprintf("https://%s", endpoint)
 	client := services.NewLightsparkClient(clientID, clientSecret, &endpointURL)
-	
+
 	return &LightsparkUMAService{
 		logger:       logger,
 		nodeID:       nodeID,
@@ -87,21 +87,24 @@ func (s *LightsparkUMAService) ValidateUMAAddress(address string) error {
 		return errors.New("invalid UMA address: domain cannot be empty")
 	}
 
-	
 	return nil
 }
 
-// CreateInvoice creates a Lightning invoice for UMA payment
-func (s *LightsparkUMAService) CreateInvoice(umaAddress string, amountSats int64, description string) (*models.Invoice, error) {
+// CreateUMARequest creates a one-time invoice using UMA Request for a product or service
+func (s *LightsparkUMAService) CreateUMARequest(umaAddress string, amountSats int64, description string) (*models.Invoice, error) {
 	// Validate UMA address
 	if err := s.ValidateUMAAddress(umaAddress); err != nil {
 		return nil, fmt.Errorf("invalid UMA address: %w", err)
 	}
-	
-	// Create real Lightning invoice
-	return s.CreateRealLightningInvoice(amountSats, fmt.Sprintf("UMA Payment: %s", description))
-}
 
+	s.logger.Info("Creating UMA Request",
+		"uma_address", umaAddress,
+		"amount_sats", amountSats,
+		"description", description)
+
+	// Create one-time Lightning invoice using UMA Request pattern
+	return s.createOneTimeInvoice(amountSats, fmt.Sprintf("UMA Request - %s", description))
+}
 
 // CheckPaymentStatus checks the status of a payment
 func (s *LightsparkUMAService) CheckPaymentStatus(invoiceID string) (*models.PaymentStatus, error) {
@@ -111,16 +114,16 @@ func (s *LightsparkUMAService) CheckPaymentStatus(invoiceID string) (*models.Pay
 
 // HandleUMACallback processes UMA payment callbacks
 func (s *LightsparkUMAService) HandleUMACallback(paymentHash string, status string) error {
-	s.logger.Info("Processing UMA callback", 
+	s.logger.Info("Processing UMA callback",
 		"payment_hash", paymentHash,
 		"status", status)
-	
+
 	// In a real implementation, this would:
 	// 1. Validate the callback signature
 	// 2. Update the payment status in your database
 	// 3. Trigger ticket delivery if payment is successful
 	// 4. Send confirmation emails/notifications
-	
+
 	switch status {
 	case "paid":
 		s.logger.Info("Payment confirmed", "payment_hash", paymentHash)
@@ -138,38 +141,99 @@ func (s *LightsparkUMAService) HandleUMACallback(paymentHash string, status stri
 	default:
 		s.logger.Warn("Unknown payment status", "status", status, "payment_hash", paymentHash)
 	}
-	
+
 	return nil
 }
 
-// CreateRealLightningInvoice creates a real Lightning invoice using Lightspark SDK
-func (s *LightsparkUMAService) CreateRealLightningInvoice(amountSats int64, description string) (*models.Invoice, error) {
+// createHardcodedTestInvoice creates a hardcoded test invoice for development/testing
+func (s *LightsparkUMAService) createHardcodedTestInvoice(amountSats int64, description string) (*models.Invoice, error) {
+	s.logger.Info("Creating hardcoded test invoice for development",
+		"amount_sats", amountSats,
+		"description", description)
+
+	// Generate unique invoice ID
+	invoiceID := s.generateInvoiceID()
+
+	// Generate payment hash
+	paymentHash := s.generatePaymentHash(invoiceID, amountSats)
+
+	// Set expiration to 1 hour from now
+	expiresAt := time.Now().Add(1 * time.Hour)
+
+	// Create a hardcoded test bolt11 invoice
+	// This is a mock invoice for development purposes
+	bolt11 := fmt.Sprintf("lntb%d0n1p%spp5%s", 
+		amountSats, 
+		strings.Repeat("0", 10), 
+		strings.Repeat("a", 50))
+
+	s.logger.Info("Created hardcoded test invoice",
+		"invoice_id", invoiceID,
+		"amount_sats", amountSats,
+		"bolt11", bolt11[:50] + "...")
+
+	return &models.Invoice{
+		ID:          invoiceID,
+		PaymentHash: paymentHash,
+		Bolt11:      bolt11,
+		AmountSats:  amountSats,
+		Status:      "pending",
+		ExpiresAt:   &expiresAt,
+	}, nil
+}
+
+// createOneTimeInvoice creates a one-time Lightning invoice using Lightspark SDK for UMA Request
+func (s *LightsparkUMAService) createOneTimeInvoice(amountSats int64, description string) (*models.Invoice, error) {
+	// Check if we have proper Lightspark credentials
+	if s.clientID == "" || s.clientSecret == "" || s.nodeID == "" {
+		s.logger.Warn("Lightspark credentials not configured - using hardcoded test invoice", 
+			"client_id_set", s.clientID != "",
+			"client_secret_set", s.clientSecret != "",
+			"node_id_set", s.nodeID != "")
+		
+		// Return a hardcoded test invoice for development/testing
+		return s.createHardcodedTestInvoice(amountSats, description)
+	}
+
 	// Convert sats to millisats
 	amountMsats := amountSats * 1000
 
+	s.logger.Info("Creating Lightspark testnet invoice",
+		"amount_sats", amountSats,
+		"amount_msats", amountMsats,
+		"description", description,
+		"node_id", s.nodeID)
+
 	// Use the official SDK's CreateTestModeInvoice function
 	bolt11, err := s.client.CreateTestModeInvoice(
-		s.nodeID, 
-		amountMsats, 
-		&description, 
+		s.nodeID,
+		amountMsats,
+		&description,
 		nil, // invoice type - nil for default
 	)
 	if err != nil {
+		s.logger.Error("Lightspark CreateTestModeInvoice failed", "error", err)
 		return nil, fmt.Errorf("failed to create Lightspark testnet invoice: %w", err)
 	}
 
 	if bolt11 == nil {
+		s.logger.Error("Received nil bolt11 from Lightspark")
 		return nil, fmt.Errorf("received nil invoice from Lightspark")
 	}
 
 	// Generate unique invoice ID (since we don't get one back from CreateTestModeInvoice)
 	invoiceID := s.generateInvoiceID()
-	
+
 	// Generate payment hash
 	paymentHash := s.generatePaymentHash(invoiceID, amountSats)
-	
+
 	// Set expiration to 1 hour from now
 	expiresAt := time.Now().Add(1 * time.Hour)
+
+	s.logger.Info("Successfully created UMA Request invoice",
+		"invoice_id", invoiceID,
+		"amount_sats", amountSats,
+		"expires_at", expiresAt)
 
 	return &models.Invoice{
 		ID:          invoiceID,

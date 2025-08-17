@@ -12,17 +12,27 @@ import (
 	"tickets-by-uma/middleware"
 	"tickets-by-uma/models"
 	"tickets-by-uma/repositories"
+	"tickets-by-uma/services"
 )
 
 type EventHandlers struct {
-	eventRepo repositories.EventRepository
-	logger    *slog.Logger
+	eventRepo   repositories.EventRepository
+	paymentRepo repositories.PaymentRepository
+	umaService  services.UMAService
+	logger      *slog.Logger
 }
 
-func NewEventHandlers(eventRepo repositories.EventRepository, logger *slog.Logger) *EventHandlers {
+func NewEventHandlers(
+	eventRepo repositories.EventRepository,
+	paymentRepo repositories.PaymentRepository,
+	umaService services.UMAService,
+	logger *slog.Logger,
+) *EventHandlers {
 	return &EventHandlers{
-		eventRepo: eventRepo,
-		logger:    logger,
+		eventRepo:   eventRepo,
+		paymentRepo: paymentRepo,
+		umaService:  umaService,
+		logger:      logger,
 	}
 }
 
@@ -120,6 +130,9 @@ func (h *EventHandlers) HandleCreateEvent(w http.ResponseWriter, r *http.Request
 		middleware.WriteError(w, http.StatusInternalServerError, "Failed to create event")
 		return
 	}
+	
+	// No need to pre-create invoices with UMA Request pattern
+	// Invoices will be created on-demand when users purchase tickets
 	
 	h.logger.Info("Event created successfully", "event_id", event.ID)
 	
@@ -268,3 +281,4 @@ func (h *EventHandlers) validateCreateEventRequest(req *models.CreateEventReques
 	
 	return nil
 }
+

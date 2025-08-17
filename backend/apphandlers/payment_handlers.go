@@ -266,8 +266,8 @@ func (h *PaymentHandlers) HandleRetryPayment(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	
-	// Create new UMA invoice
-	invoice, err := h.umaService.CreateInvoice(
+	// Create new UMA Request for retry payment
+	invoice, err := h.umaService.CreateUMARequest(
 		ticket.UMAAddress, 
 		payment.Amount, 
 		fmt.Sprintf("Retry payment for ticket %s", ticket.TicketCode),

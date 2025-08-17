@@ -101,3 +101,9 @@ func (r *paymentRepository) GetPendingPayments() ([]models.Payment, error) {
 	err := r.db.Select(&payments, query)
 	return payments, err
 }
+
+func (r *paymentRepository) GetAvailablePaymentForEvent(eventID int) (*models.Payment, error) {
+	// This method is no longer needed with UMA Request pattern
+	// Return nil to indicate no pre-created payments available
+	return nil, nil
+}
