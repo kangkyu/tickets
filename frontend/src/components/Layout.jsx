@@ -1,22 +1,49 @@
 import { Link, useLocation } from 'react-router-dom'
-import { Calendar, Ticket, User, Menu, X } from 'lucide-react'
-import { useState } from 'react'
+import { Calendar, Ticket, User, Menu, X, LogOut, LogIn } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { useAuth } from '../contexts/AuthContext'
 
 const Layout = ({ children }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false)
   const location = useLocation()
+  const { user, isAuthenticated, logout } = useAuth()
+  const userMenuRef = useRef(null)
 
   const navigation = [
-    { name: 'Events', href: '/', icon: Calendar },
-    { name: 'My Tickets', href: '/tickets', icon: Ticket },
-    { name: 'Profile', href: '/profile', icon: User },
+    { name: 'Events', href: '/', icon: Calendar, public: true },
+    { name: 'My Tickets', href: '/tickets', icon: Ticket, public: false },
   ]
+
+  // Close user menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(event.target)) {
+        setIsUserMenuOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [])
+
+  // Close mobile menu when route changes
+  useEffect(() => {
+    setIsMobileMenuOpen(false)
+  }, [location.pathname])
 
   const isActive = (href) => {
     if (href === '/') {
       return location.pathname === '/'
     }
     return location.pathname.startsWith(href)
+  }
+
+  const handleLogout = () => {
+    logout()
+    setIsUserMenuOpen(false)
   }
 
   return (
@@ -38,6 +65,9 @@ const Layout = ({ children }) => {
             {/* Desktop Navigation */}
             <nav className="hidden md:flex space-x-8">
               {navigation.map((item) => {
+                // Only show navigation items that are public or if user is authenticated
+                if (!item.public && !isAuthenticated) return null
+                
                 const Icon = item.icon
                 return (
                   <Link
@@ -56,18 +86,74 @@ const Layout = ({ children }) => {
               })}
             </nav>
 
-            {/* Mobile menu button */}
-            <div className="md:hidden">
-              <button
-                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                className="p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-uma-500"
-              >
-                {isMobileMenuOpen ? (
-                  <X className="w-6 h-6" />
-                ) : (
-                  <Menu className="w-6 h-6" />
-                )}
-              </button>
+            {/* User Menu / Auth */}
+            <div className="flex items-center space-x-4">
+              {isAuthenticated ? (
+                <div className="relative" ref={userMenuRef}>
+                  <button
+                    onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+                    className="flex items-center space-x-2 p-2 rounded-md text-gray-700 hover:text-gray-900 hover:bg-gray-100 transition-colors"
+                  >
+                    <div className="w-8 h-8 bg-uma-100 rounded-full flex items-center justify-center">
+                      <User className="w-4 h-4 text-uma-600" />
+                    </div>
+                    <span className="hidden sm:block text-sm font-medium">
+                      {user?.name || user?.email}
+                    </span>
+                  </button>
+
+                  {/* User Dropdown Menu */}
+                  {isUserMenuOpen && (
+                    <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50 border border-gray-200">
+                      <div className="px-4 py-2 border-b border-gray-100">
+                        <p className="text-sm font-medium text-gray-900">
+                          {user?.name || 'User'}
+                        </p>
+                        <p className="text-sm text-gray-500">{user?.email}</p>
+                      </div>
+                      
+                      <Link
+                        to="/tickets"
+                        onClick={() => setIsUserMenuOpen(false)}
+                        className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                      >
+                        <Ticket className="w-4 h-4 mr-2" />
+                        My Tickets
+                      </Link>
+                      
+                      <button
+                        onClick={handleLogout}
+                        className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                      >
+                        <LogOut className="w-4 h-4 mr-2" />
+                        Sign Out
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <Link
+                  to="/login"
+                  className="flex items-center space-x-2 px-4 py-2 rounded-md text-sm font-medium text-uma-600 bg-uma-50 hover:bg-uma-100 transition-colors"
+                >
+                  <LogIn className="w-4 h-4" />
+                  <span>Sign In</span>
+                </Link>
+              )}
+
+              {/* Mobile menu button */}
+              <div className="md:hidden">
+                <button
+                  onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                  className="p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-uma-500"
+                >
+                  {isMobileMenuOpen ? (
+                    <X className="w-6 h-6" />
+                  ) : (
+                    <Menu className="w-6 h-6" />
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -77,6 +163,9 @@ const Layout = ({ children }) => {
           <div className="md:hidden">
             <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3 bg-white border-t border-gray-200">
               {navigation.map((item) => {
+                // Only show navigation items that are public or if user is authenticated
+                if (!item.public && !isAuthenticated) return null
+                
                 const Icon = item.icon
                 return (
                   <Link
@@ -94,6 +183,39 @@ const Layout = ({ children }) => {
                   </Link>
                 )
               })}
+              
+              {/* Mobile Auth */}
+              {isAuthenticated ? (
+                <div className="border-t border-gray-200 pt-4">
+                  <div className="px-3 py-2">
+                    <p className="text-sm font-medium text-gray-900">
+                      {user?.name || 'User'}
+                    </p>
+                    <p className="text-sm text-gray-500">{user?.email}</p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      handleLogout()
+                      setIsMobileMenuOpen(false)
+                    }}
+                    className="flex items-center w-full px-3 py-2 text-base font-medium text-gray-500 hover:text-gray-700 hover:bg-gray-50"
+                  >
+                    <LogOut className="w-5 h-5 mr-3" />
+                    Sign Out
+                  </button>
+                </div>
+              ) : (
+                <div className="border-t border-gray-200 pt-4">
+                  <Link
+                    to="/login"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="flex items-center px-3 py-2 text-base font-medium text-uma-600 bg-uma-50 hover:bg-uma-100 rounded-md"
+                  >
+                    <LogIn className="w-5 h-5 mr-3" />
+                    Sign In
+                  </Link>
+                </div>
+              )}
             </div>
           </div>
         )}

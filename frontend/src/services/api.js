@@ -3,12 +3,42 @@ import config from '../config/api'
 
 // Create axios instance with default configuration
 const api = axios.create({
-  baseURL: config.apiUrl,
+  baseURL: config.getApiUrl(),
   timeout: config.requestTimeout,
   headers: {
     'Content-Type': 'application/json',
   },
+  // Add CORS-specific options
+  withCredentials: true, // Important for CORS with credentials
 })
+
+// CORS debugging and fallback logic
+const handleCORSIssue = (error, config) => {
+  console.warn('🔍 CORS Debug Info:', {
+    url: config.url,
+    method: config.method,
+    origin: window.location.origin,
+    target: new URL(config.url).origin,
+    error: error.message,
+    status: error.response?.status,
+    headers: error.response?.headers,
+  })
+
+  // Check if it's a CORS issue
+  if (error.message.includes('CORS') || error.message.includes('blocked by CORS policy')) {
+    console.error('🚫 CORS Issue Detected!')
+    console.error('💡 Possible Solutions:')
+    console.error('   1. Check if backend CORS middleware is working')
+    console.error('   2. Verify allowed origins in backend config')
+    console.error('   3. Check if backend is running and accessible')
+    console.error('   4. Try using a CORS proxy for development')
+    
+    // Suggest fallback for development
+    if (config.isDevelopment) {
+      console.warn('🛠️  Development Fallback: Consider using a CORS proxy')
+    }
+  }
+}
 
 // Request interceptor for adding auth tokens or other headers
 api.interceptors.request.use(
@@ -18,6 +48,20 @@ api.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
     }
+    
+    // Add CORS debugging info
+    config.isDevelopment = import.meta.env.MODE === 'development'
+    
+    // Log request details for debugging
+    if (config.isDevelopment) {
+      console.log('🚀 API Request:', {
+        method: config.method?.toUpperCase(),
+        url: config.url,
+        baseURL: config.baseURL,
+        headers: config.headers,
+      })
+    }
+    
     return config
   },
   (error) => {
@@ -29,9 +73,25 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response.data,
   (error) => {
+    // Handle CORS issues specifically
+    if (error.message.includes('CORS') || error.message.includes('blocked by CORS policy')) {
+      handleCORSIssue(error, error.config)
+    }
+    
     if (error.response) {
       // Server responded with error status
       const { status, data } = error.response
+      
+      // Log response details for debugging
+      if (error.config?.isDevelopment) {
+        console.log('📡 API Response Error:', {
+          status,
+          url: error.config.url,
+          method: error.config.method,
+          headers: error.response.headers,
+          data,
+        })
+      }
       
       switch (status) {
         case 401:
@@ -64,8 +124,14 @@ api.interceptors.response.use(
         errors: data.errors || {},
       })
     } else if (error.request) {
-      // Network error
-      console.error('Network error:', error.message)
+      // Network error - could be CORS related
+      console.error('🌐 Network error:', error.message)
+      
+      // Check if it's a CORS issue
+      if (error.message.includes('CORS') || error.message.includes('blocked by CORS policy')) {
+        handleCORSIssue(error, error.config)
+      }
+      
       return Promise.reject({
         status: 0,
         message: 'Network error - please check your connection',
@@ -73,7 +139,7 @@ api.interceptors.response.use(
       })
     } else {
       // Other error
-      console.error('Request error:', error.message)
+      console.error('❌ Request error:', error.message)
       return Promise.reject({
         status: 0,
         message: error.message || 'An unexpected error occurred',
@@ -182,6 +248,44 @@ export const userAPI = {
 export const apiUtils = {
   // Check if user is online
   isOnline: () => navigator.onLine,
+
+  // Test CORS connectivity
+  testCORS: async (endpoint = '/health') => {
+    try {
+      console.log('🧪 Testing CORS connectivity...')
+      
+      const testUrl = `${config.apiUrl}${endpoint}`
+      console.log('📍 Testing URL:', testUrl)
+      
+      const response = await fetch(testUrl, {
+        method: 'GET',
+        mode: 'cors',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+      
+      console.log('✅ CORS Test Success:', {
+        status: response.status,
+        statusText: response.statusText,
+        headers: Object.fromEntries(response.headers.entries()),
+      })
+      
+      return { success: true, response }
+    } catch (error) {
+      console.error('❌ CORS Test Failed:', error)
+      
+      if (error.message.includes('CORS')) {
+        console.error('🚫 CORS Issue Details:')
+        console.error('   - Origin:', window.location.origin)
+        console.error('   - Target:', config.apiUrl)
+        console.error('   - Error:', error.message)
+      }
+      
+      return { success: false, error }
+    }
+  },
 
   // Retry function with exponential backoff
   retry: async (fn, maxRetries = config.maxRetries, delay = 1000) => {

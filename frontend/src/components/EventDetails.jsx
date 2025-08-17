@@ -1,11 +1,13 @@
 import { useParams, Link, Navigate } from 'react-router-dom'
-import { ArrowLeft, Calendar, MapPin, Users, Clock, Share2, Heart } from 'lucide-react'
+import { ArrowLeft, Calendar, MapPin, Users, Clock, Share2, Heart, Zap } from 'lucide-react'
 import { useEvent } from '../hooks/useEvents'
+import { useAuth } from '../contexts/AuthContext'
 import { formatEventDate, formatPrice, formatSatsToUSD } from '../utils/formatters'
 
 const EventDetails = () => {
   const { eventId } = useParams()
   const { data: event, isLoading, error } = useEvent(eventId)
+  const { isAuthenticated } = useAuth()
 
   // Loading state
   if (isLoading) {
@@ -227,14 +229,30 @@ const EventDetails = () => {
                 )}
               </div>
 
-              {/* Purchase Button */}
+              {/* Purchase Button or Login Prompt */}
               {!isEventPassed && !isSoldOut ? (
-                <Link
-                  to={`/events/${event.id}/purchase`}
-                  className="btn-uma w-full text-center"
-                >
-                  Purchase Tickets
-                </Link>
+                isAuthenticated ? (
+                  <Link
+                    to={`/events/${event.id}/purchase`}
+                    className="btn-uma w-full text-center"
+                  >
+                    Purchase Tickets
+                  </Link>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="text-center text-sm text-gray-600">
+                      Sign in to purchase tickets
+                    </div>
+                    <Link
+                      to="/login"
+                      state={{ from: { pathname: `/events/${event.id}` } }}
+                      className="btn-uma w-full text-center"
+                    >
+                      <Zap className="w-4 h-4 mr-2 inline" />
+                      Sign In to Purchase
+                    </Link>
+                  </div>
+                )
               ) : (
                 <button
                   disabled

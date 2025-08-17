@@ -77,36 +77,36 @@ func (s *Server) setupRoutes() {
 	// api.Use(s.corsMiddleware)
 
 	// User routes (no auth required)
-	api.HandleFunc("/users", s.userHandlers.HandleCreateUser).Methods("POST")
-	api.HandleFunc("/users/login", s.userHandlers.HandleLogin).Methods("POST")
-	api.HandleFunc("/users/{id:[0-9]+}", s.userHandlers.HandleGetUser).Methods("GET")
+	api.HandleFunc("/users", s.userHandlers.HandleCreateUser).Methods("POST", "OPTIONS")
+	api.HandleFunc("/users/login", s.userHandlers.HandleLogin).Methods("POST", "OPTIONS")
+	api.HandleFunc("/users/{id:[0-9]+}", s.userHandlers.HandleGetUser).Methods("GET", "OPTIONS")
 
 	// Event routes (public)
-	api.HandleFunc("/events", s.eventHandlers.HandleGetEvents).Methods("GET")
-	api.HandleFunc("/events/{id:[0-9]+}", s.eventHandlers.HandleGetEvent).Methods("GET")
+	api.HandleFunc("/events", s.eventHandlers.HandleGetEvents).Methods("GET", "OPTIONS")
+	api.HandleFunc("/events/{id:[0-9]+}", s.eventHandlers.HandleGetEvent).Methods("GET", "OPTIONS")
 
 	// Ticket routes (public for purchase, auth for others)
-	api.HandleFunc("/tickets/purchase", s.ticketHandlers.HandlePurchaseTicket).Methods("POST")
-	api.HandleFunc("/tickets/{id:[0-9]+}/status", s.ticketHandlers.HandleTicketStatus).Methods("GET")
-	api.HandleFunc("/tickets/validate", s.ticketHandlers.HandleValidateTicket).Methods("POST")
+	api.HandleFunc("/tickets/purchase", s.ticketHandlers.HandlePurchaseTicket).Methods("POST", "OPTIONS")
+	api.HandleFunc("/tickets/{id:[0-9]+}/status", s.ticketHandlers.HandleTicketStatus).Methods("GET", "OPTIONS")
+	api.HandleFunc("/tickets/validate", s.ticketHandlers.HandleValidateTicket).Methods("POST", "OPTIONS")
 
 	// Payment webhook (no auth required)
-	api.HandleFunc("/webhooks/payment", s.paymentHandlers.HandlePaymentWebhook).Methods("POST")
+	api.HandleFunc("/webhooks/payment", s.paymentHandlers.HandlePaymentWebhook).Methods("POST", "OPTIONS")
 
 	// Protected routes (require authentication)
 	protected := api.PathPrefix("").Subrouter()
 	protected.Use(middleware.AuthMiddleware(s.config.JWTSecret))
 
 	// Protected user routes
-	protected.HandleFunc("/users/me", s.userHandlers.HandleGetCurrentUser).Methods("GET")
-	protected.HandleFunc("/users/{id:[0-9]+}", s.userHandlers.HandleUpdateUser).Methods("PUT")
-	protected.HandleFunc("/users/{id:[0-9]+}", s.userHandlers.HandleDeleteUser).Methods("DELETE")
+	protected.HandleFunc("/users/me", s.userHandlers.HandleGetCurrentUser).Methods("GET", "OPTIONS")
+	protected.HandleFunc("/users/{id:[0-9]+}", s.userHandlers.HandleUpdateUser).Methods("PUT", "OPTIONS")
+	protected.HandleFunc("/users/{id:[0-9]+}", s.userHandlers.HandleDeleteUser).Methods("DELETE", "OPTIONS")
 
 	// Protected ticket routes
-	protected.HandleFunc("/tickets/user/{user_id:[0-9]+}", s.ticketHandlers.HandleGetUserTickets).Methods("GET")
+	protected.HandleFunc("/tickets/user/{user_id:[0-9]+}", s.ticketHandlers.HandleGetUserTickets).Methods("GET", "OPTIONS")
 
 	// Protected payment routes
-	protected.HandleFunc("/payments/{invoice_id}/status", s.paymentHandlers.HandlePaymentStatus).Methods("GET")
+	protected.HandleFunc("/payments/{invoice_id}/status", s.paymentHandlers.HandlePaymentStatus).Methods("GET", "OPTIONS")
 
 	// Admin routes (require authentication and admin privileges)
 	admin := api.PathPrefix("/admin").Subrouter()
@@ -114,13 +114,13 @@ func (s *Server) setupRoutes() {
 	admin.Use(s.adminMiddleware)
 
 	// Admin event routes
-	admin.HandleFunc("/events", s.eventHandlers.HandleCreateEvent).Methods("POST")
-	admin.HandleFunc("/events/{id:[0-9]+}", s.eventHandlers.HandleUpdateEvent).Methods("PUT")
-	admin.HandleFunc("/events/{id:[0-9]+}", s.eventHandlers.HandleDeleteEvent).Methods("DELETE")
+	admin.HandleFunc("/events", s.eventHandlers.HandleCreateEvent).Methods("POST", "OPTIONS")
+	admin.HandleFunc("/events/{id:[0-9]+}", s.eventHandlers.HandleUpdateEvent).Methods("PUT", "OPTIONS")
+	admin.HandleFunc("/events/{id:[0-9]+}", s.eventHandlers.HandleDeleteEvent).Methods("DELETE", "OPTIONS")
 
 	// Admin payment routes
-	admin.HandleFunc("/payments/pending", s.paymentHandlers.HandleGetPendingPayments).Methods("GET")
-	admin.HandleFunc("/payments/{id:[0-9]+}/retry", s.paymentHandlers.HandleRetryPayment).Methods("POST")
+	admin.HandleFunc("/payments/pending", s.paymentHandlers.HandleGetPendingPayments).Methods("GET", "OPTIONS")
+	admin.HandleFunc("/payments/{id:[0-9]+}/retry", s.paymentHandlers.HandleRetryPayment).Methods("POST", "OPTIONS")
 }
 
 // Initialize handlers

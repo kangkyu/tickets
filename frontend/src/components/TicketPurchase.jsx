@@ -1,24 +1,24 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { ArrowLeft, User, Mail, CreditCard, CheckCircle, AlertCircle } from 'lucide-react'
+import { ArrowLeft, User, Mail, Zap, CheckCircle, AlertCircle } from 'lucide-react'
 import { useEvent } from '../hooks/useEvents'
-import { useTicketPurchase } from '../hooks/useTickets'
-import { purchaseTicketSchema } from '../utils/validators'
+import { useAuth } from '../contexts/AuthContext'
 import { formatPrice, formatSatsToUSD } from '../utils/formatters'
+import config from '../config/api'
 
 const TicketPurchase = () => {
   const { eventId } = useParams()
   const navigate = useNavigate()
   const [currentStep, setCurrentStep] = useState(1)
-  const [purchaseData, setPurchaseData] = useState(null)
+  const [isCreatingPayment, setIsCreatingPayment] = useState(false)
+  const [paymentError, setPaymentError] = useState(null)
   
   // Get event data
   const { data: event, isLoading: eventLoading, error: eventError } = useEvent(eventId)
   
-  // Ticket purchase mutation
-  const { mutate: purchaseTicket, isLoading: isPurchasing, error: purchaseError } = useTicketPurchase()
+  // Get authenticated user
+  const { user } = useAuth()
 
   // Form setup
   const {
@@ -26,14 +26,14 @@ const TicketPurchase = () => {
     handleSubmit,
     formState: { errors, isValid },
     watch,
-    setValue
+    setValue,
+    trigger
   } = useForm({
-    resolver: zodResolver(purchaseTicketSchema),
     defaultValues: {
       eventId: parseInt(eventId),
       quantity: 1,
-      userName: '',
-      userEmail: '',
+      userName: user?.name || '',
+      userEmail: user?.email || '',
       umaAddress: ''
     },
     mode: 'onChange'
@@ -41,22 +41,82 @@ const TicketPurchase = () => {
 
   const watchedValues = watch()
 
+  // UMA address validation
+  const validateUMAAddress = (address) => {
+    if (!address) return { isValid: false, error: 'UMA address is required' }
+    
+    // UMA addresses follow the format: $username@domain.com
+    const umaRegex = /^\$[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/
+    
+    if (!umaRegex.test(address)) {
+      return { 
+        isValid: false, 
+        error: 'Invalid UMA address format. Use format: $username@domain.com' 
+      }
+    }
+    
+    return { isValid: true, error: null }
+  }
+
+  // Handle UMA address validation
+  const handleUMAAddressChange = async (e) => {
+    const address = e.target.value
+    setValue('umaAddress', address)
+    
+    if (address) {
+      const validation = validateUMAAddress(address)
+      if (!validation.isValid) {
+        setValue('umaAddress', address, { shouldValidate: true })
+        await trigger('umaAddress')
+      }
+    }
+  }
+
   // Handle form submission
-  const onSubmit = (data) => {
-    setPurchaseData(data)
+  const onSubmit = async (data) => {
+    setIsCreatingPayment(true)
+    setPaymentError(null)
     setCurrentStep(2)
     
-    // Submit purchase request
-    purchaseTicket(data, {
-      onSuccess: (response) => {
-        // Navigate to payment status page
-        navigate(`/tickets/${response.ticketId}/payment`)
-      },
-      onError: (error) => {
-        console.error('Purchase failed:', error)
-        setCurrentStep(1)
+    try {
+      // Create ticket purchase with UMA payment
+      const response = await fetch(`${config.apiUrl}/api/tickets/purchase`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+        },
+        body: JSON.stringify({
+          event_id: data.eventId,
+          user_id: user.id,
+          uma_address: data.umaAddress
+        })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.message || 'Failed to create ticket purchase')
       }
-    })
+
+      const result = await response.json()
+      
+      // Navigate to payment status page
+      navigate(`/tickets/${result.data.ticket.id}/payment`, { 
+        state: { 
+          ticketId: result.data.ticket.id,
+          invoiceId: result.data.invoice.id,
+          umaAddress: data.umaAddress,
+          ticketData: data
+        }
+      })
+      
+    } catch (error) {
+      console.error('Ticket purchase failed:', error)
+      setPaymentError(error.message)
+      setCurrentStep(1)
+    } finally {
+      setIsCreatingPayment(false)
+    }
   }
 
   // Loading state
@@ -87,8 +147,8 @@ const TicketPurchase = () => {
   }
 
   // Check if event is available
-  const isEventPassed = new Date(event.date) < new Date()
-  const isSoldOut = event.availableTickets === 0
+  const isEventPassed = new Date(event.start_time) < new Date()
+  const isSoldOut = event.capacity === 0
 
   if (isEventPassed || isSoldOut) {
     return (
@@ -162,10 +222,10 @@ const TicketPurchase = () => {
                     Number of Tickets
                   </label>
                   <select
-                    {...register('quantity')}
+                    {...register('quantity', { required: 'Quantity is required' })}
                     className="input-field w-auto"
                   >
-                    {[...Array(Math.min(10, event.availableTickets))].map((_, i) => (
+                    {[...Array(Math.min(10, event.capacity))].map((_, i) => (
                       <option key={i + 1} value={i + 1}>
                         {i + 1} ticket{i !== 0 ? 's' : ''}
                       </option>
@@ -188,7 +248,7 @@ const TicketPurchase = () => {
                       <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
                       <input
                         type="text"
-                        {...register('userName')}
+                        {...register('userName', { required: 'Full name is required' })}
                         className="input-field pl-10"
                         placeholder="Enter your full name"
                       />
@@ -206,7 +266,13 @@ const TicketPurchase = () => {
                       <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
                       <input
                         type="email"
-                        {...register('userEmail')}
+                        {...register('userEmail', { 
+                          required: 'Email is required',
+                          pattern: {
+                            value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
+                            message: 'Invalid email address'
+                          }
+                        })}
                         className="input-field pl-10"
                         placeholder="Enter your email address"
                       />
@@ -221,41 +287,48 @@ const TicketPurchase = () => {
                       UMA Address
                     </label>
                     <div className="relative">
-                      <CreditCard className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                      <Zap className="absolute left-3 top-1/2 transform -translate-y-1/2 text-uma-600 w-5 h-5" />
                       <input
                         type="text"
-                        {...register('umaAddress')}
-                        className="input-field pl-10"
-                        placeholder="username@domain.com"
+                        {...register('umaAddress', { 
+                          required: 'UMA address is required',
+                          validate: (value) => {
+                            const validation = validateUMAAddress(value)
+                            return validation.isValid || validation.error
+                          }
+                        })}
+                        onChange={handleUMAAddressChange}
+                        className="input-field pl-10 border-uma-200 focus:border-uma-500 focus:ring-uma-500"
+                        placeholder="$username@domain.com"
                       />
                     </div>
                     {errors.umaAddress && (
                       <p className="mt-1 text-sm text-red-600">{errors.umaAddress.message}</p>
                     )}
                     <p className="mt-1 text-xs text-gray-500">
-                      Enter your UMA address for payment processing
+                      Enter your UMA address for Lightning Network payment processing
                     </p>
                   </div>
                 </div>
 
-                {/* Purchase Error */}
-                {purchaseError && (
+                {/* Payment Error */}
+                {paymentError && (
                   <div className="bg-red-50 border border-red-200 rounded-lg p-4">
                     <div className="flex items-center gap-2">
                       <AlertCircle className="w-5 h-5 text-red-500" />
                       <p className="text-red-700 font-medium">Purchase failed</p>
                     </div>
-                    <p className="text-red-600 text-sm mt-1">{purchaseError.message}</p>
+                    <p className="text-red-600 text-sm mt-1">{paymentError}</p>
                   </div>
                 )}
 
                 {/* Submit Button */}
                 <button
                   type="submit"
-                  disabled={!isValid || isPurchasing}
+                  disabled={!isValid || isCreatingPayment}
                   className="btn-uma w-full disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {isPurchasing ? 'Processing...' : 'Continue to Payment'}
+                  {isCreatingPayment ? 'Creating Payment...' : 'Continue to Payment'}
                 </button>
               </form>
             </div>
@@ -270,11 +343,11 @@ const TicketPurchase = () => {
                 {/* Event Info */}
                 <div className="flex items-start gap-3">
                   <div className="w-16 h-16 bg-gradient-to-br from-uma-500 to-uma-700 rounded-lg flex items-center justify-center">
-                    <Calendar className="w-6 h-6 text-white opacity-80" />
+                    <Zap className="w-6 h-6 text-white opacity-80" />
                   </div>
                   <div className="flex-1">
                     <h4 className="font-medium text-gray-900">{event.title}</h4>
-                    <p className="text-sm text-gray-600">{event.date}</p>
+                    <p className="text-sm text-gray-600">{event.start_time}</p>
                   </div>
                 </div>
 
@@ -286,30 +359,30 @@ const TicketPurchase = () => {
                   </div>
                   <div className="flex justify-between text-sm">
                     <span>Price per ticket:</span>
-                    <span>{formatPrice(event.price)}</span>
+                    <span>{formatPrice(event.price_sats)}</span>
                   </div>
                   <div className="border-t pt-3 flex justify-between font-semibold">
                     <span>Total:</span>
                     <span className="text-uma-600">
-                      {formatPrice((watchedValues.quantity || 1) * event.price)}
+                      {formatPrice((watchedValues.quantity || 1) * event.price_sats)}
                     </span>
                   </div>
                   <div className="text-xs text-gray-500 text-center">
-                    ≈ ${formatSatsToUSD((watchedValues.quantity || 1) * event.price)}
+                    ≈ ${formatSatsToUSD((watchedValues.quantity || 1) * event.price_sats)}
                   </div>
                 </div>
 
                 {/* Payment Info */}
-                <div className="bg-gray-50 p-3 rounded-lg">
-                  <p className="text-xs text-gray-500 mb-2">Payment Method</p>
+                <div className="bg-uma-50 p-3 rounded-lg border border-uma-200">
+                  <p className="text-xs text-uma-700 mb-2 font-medium">Payment Method</p>
                   <div className="flex items-center gap-2">
                     <div className="w-6 h-6 bg-uma-600 rounded flex items-center justify-center">
                       <span className="text-white text-xs font-bold">⚡</span>
                     </div>
-                    <span className="text-sm font-medium text-gray-900">Lightning Network</span>
+                    <span className="text-sm font-medium text-uma-900">Lightning Network</span>
                   </div>
-                  <p className="text-xs text-gray-500 mt-1">
-                    Instant payment with Bitcoin Lightning
+                  <p className="text-xs text-uma-600 mt-1">
+                    Instant payment with Bitcoin Lightning via UMA
                   </p>
                 </div>
               </div>
@@ -322,7 +395,7 @@ const TicketPurchase = () => {
       {currentStep === 2 && (
         <div className="text-center py-12">
           <div className="loading-skeleton w-16 h-16 rounded-full mx-auto mb-4 animate-spin"></div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Processing Your Order</h2>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Creating UMA Payment</h2>
           <p className="text-gray-600">
             Please wait while we generate your Lightning invoice...
           </p>

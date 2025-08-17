@@ -1,22 +1,43 @@
 import { Routes, Route } from 'react-router-dom'
+import { AuthProvider } from './contexts/AuthContext'
 import Layout from './components/Layout'
 import EventList from './components/EventList'
 import EventDetails from './components/EventDetails'
 import TicketPurchase from './components/TicketPurchase'
 import PaymentStatus from './components/PaymentStatus'
 import TicketList from './components/TicketList'
+import Login from './components/Login'
+import ProtectedRoute from './components/ProtectedRoute'
 
 function App() {
   return (
-    <Layout>
-      <Routes>
-        <Route path="/" element={<EventList />} />
-        <Route path="/events/:eventId" element={<EventDetails />} />
-        <Route path="/events/:eventId/purchase" element={<TicketPurchase />} />
-        <Route path="/tickets/:ticketId/payment" element={<PaymentStatus />} />
-        <Route path="/tickets" element={<TicketList />} />
-      </Routes>
-    </Layout>
+    <AuthProvider>
+      <Layout>
+        <Routes>
+          {/* Public routes */}
+          <Route path="/" element={<EventList />} />
+          <Route path="/events/:eventId" element={<EventDetails />} />
+          <Route path="/login" element={<Login />} />
+          
+          {/* Protected routes - require authentication */}
+          <Route path="/events/:eventId/purchase" element={
+            <ProtectedRoute>
+              <TicketPurchase />
+            </ProtectedRoute>
+          } />
+          <Route path="/tickets/:ticketId/payment" element={
+            <ProtectedRoute>
+              <PaymentStatus />
+            </ProtectedRoute>
+          } />
+          <Route path="/tickets" element={
+            <ProtectedRoute>
+              <TicketList />
+            </ProtectedRoute>
+          } />
+        </Routes>
+      </Layout>
+    </AuthProvider>
   )
 }
 
