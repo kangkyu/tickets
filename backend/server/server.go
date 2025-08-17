@@ -9,26 +9,26 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/jmoiron/sqlx"
 
-	"tickets-by-uma/config"
 	"tickets-by-uma/apphandlers"
+	"tickets-by-uma/config"
 	"tickets-by-uma/middleware"
 	"tickets-by-uma/repositories"
 	"tickets-by-uma/services"
 )
 
 type Server struct {
-	db             *sqlx.DB
-	logger         *slog.Logger
-	config         *config.Config
-	userRepo       repositories.UserRepository
-	eventRepo      repositories.EventRepository
-	ticketRepo     repositories.TicketRepository
-	paymentRepo    repositories.PaymentRepository
-	umaService     services.UMAService
-	router         *mux.Router
-	userHandlers   *apphandlers.UserHandlers
-	eventHandlers  *apphandlers.EventHandlers
-	ticketHandlers *apphandlers.TicketHandlers
+	db              *sqlx.DB
+	logger          *slog.Logger
+	config          *config.Config
+	userRepo        repositories.UserRepository
+	eventRepo       repositories.EventRepository
+	ticketRepo      repositories.TicketRepository
+	paymentRepo     repositories.PaymentRepository
+	umaService      services.UMAService
+	router          *mux.Router
+	userHandlers    *apphandlers.UserHandlers
+	eventHandlers   *apphandlers.EventHandlers
+	ticketHandlers  *apphandlers.TicketHandlers
 	paymentHandlers *apphandlers.PaymentHandlers
 }
 
@@ -45,10 +45,11 @@ func NewServer(db *sqlx.DB, logger *slog.Logger, config *config.Config) *Server 
 	s.eventRepo = repositories.NewEventRepository(db)
 	s.ticketRepo = repositories.NewTicketRepository(db)
 	s.paymentRepo = repositories.NewPaymentRepository(db)
-	
+
 	// Initialize UMA service
 	s.umaService = services.NewLightsparkUMAService(
-		config.LightsparkAPIToken,
+		config.LightsparkClientID,
+		config.LightsparkClientSecret,
 		config.LightsparkEndpoint,
 		config.LightsparkNodeID,
 		logger,
@@ -56,7 +57,7 @@ func NewServer(db *sqlx.DB, logger *slog.Logger, config *config.Config) *Server 
 
 	// Initialize handlers
 	s.initializeHandlers()
-	
+
 	s.setupRoutes()
 	return s
 }
@@ -64,7 +65,7 @@ func NewServer(db *sqlx.DB, logger *slog.Logger, config *config.Config) *Server 
 func (s *Server) setupRoutes() {
 	// Add CORS middleware to main router (covers all endpoints)
 	s.router.Use(s.corsMiddleware)
-	
+
 	// Add logging middleware
 	s.router.Use(s.loggingMiddleware)
 
@@ -155,7 +156,7 @@ func (s *Server) loggingMiddleware(next http.Handler) http.Handler {
 		wrapped := &responseWriter{ResponseWriter: w, statusCode: http.StatusOK}
 
 		next.ServeHTTP(wrapped, r)
-		
+
 		duration := time.Since(start)
 
 		s.logger.Info("HTTP Request",
