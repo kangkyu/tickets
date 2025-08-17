@@ -30,7 +30,6 @@ func main() {
 	logger.Info("Configuration loaded", 
 		"port", cfg.Port,
 		"database_url", maskDatabaseURL(cfg.DatabaseURL),
-		"lightspark_endpoint", cfg.LightsparkEndpoint,
 	)
 
 	// Database connection

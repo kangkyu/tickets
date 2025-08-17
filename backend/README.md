@@ -89,7 +89,6 @@ The service uses environment variables for configuration:
 | `PORT` | HTTP server port | `8080` |
 | `DATABASE_URL` | PostgreSQL connection string | `postgres://postgres:password@localhost:5432/tickets_uma?sslmode=disable` |
 | `LIGHTSPARK_API_TOKEN` | Lightspark API token | Required |
-| `LIGHTSPARK_ENDPOINT` | Lightspark API endpoint | `api.lightspark.com` |
 | `LIGHTSPARK_NODE_ID` | Lightspark node ID | Required |
 | `JWT_SECRET` | JWT signing secret | `your-secret-key-change-in-production` |
 | `ADMIN_EMAILS` | Comma-separated admin email addresses | `admin@example.com` |

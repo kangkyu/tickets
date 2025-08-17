@@ -10,7 +10,6 @@ type Config struct {
 	DatabaseURL            string
 	LightsparkClientID     string
 	LightsparkClientSecret string
-	LightsparkEndpoint     string
 	LightsparkNodeID       string
 	LightsparkNodePassword string
 	JWTSecret              string
@@ -23,7 +22,6 @@ func LoadConfig() *Config {
 		DatabaseURL:            getEnv("DATABASE_URL", "postgres://postgres:password@localhost:5432/tickets_uma?sslmode=disable"),
 		LightsparkClientID:     getEnv("LIGHTSPARK_CLIENT_ID", ""),
 		LightsparkClientSecret: getEnv("LIGHTSPARK_CLIENT_SECRET", ""),
-		LightsparkEndpoint:     getEnv("LIGHTSPARK_ENDPOINT", "api.lightspark.com"),
 		LightsparkNodeID:       getEnv("LIGHTSPARK_NODE_ID", ""),
 		LightsparkNodePassword: getEnv("LIGHTSPARK_TEST_NODE_PASSWORD", ""),
 		JWTSecret:              getEnv("JWT_SECRET", "your-secret-key-change-in-production"),
