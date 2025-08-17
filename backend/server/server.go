@@ -50,7 +50,6 @@ func NewServer(db *sqlx.DB, logger *slog.Logger, config *config.Config) *Server 
 	s.umaService = services.NewLightsparkUMAService(
 		config.LightsparkClientID,
 		config.LightsparkClientSecret,
-		config.LightsparkEndpoint,
 		config.LightsparkNodeID,
 		config.LightsparkNodePassword,
 		logger,

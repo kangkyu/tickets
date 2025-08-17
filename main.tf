@@ -402,10 +402,6 @@ resource "aws_ecs_task_definition" "backend" {
           value = "postgres://${var.database_username}:${random_password.db_password.result}@${aws_db_instance.postgres.endpoint}/${var.database_name}?sslmode=require"
         },
         {
-          name  = "LIGHTSPARK_ENDPOINT"
-          value = "api.lightspark.com"
-        },
-        {
           name  = "JWT_SECRET"
           value = random_password.jwt_secret.result
         }

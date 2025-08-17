@@ -29,15 +29,13 @@ type LightsparkUMAService struct {
 	nodePassword string
 	clientID     string
 	clientSecret string
-	endpoint     string
 	client       *services.LightsparkClient
 }
 
 // NewLightsparkUMAService creates a new UMA service instance
-func NewLightsparkUMAService(clientID, clientSecret, endpoint, nodeID, nodePassword string, logger *slog.Logger) UMAService {
-	// Create Lightspark client - SDK expects full HTTPS URL
-	endpointURL := fmt.Sprintf("https://%s", endpoint)
-	client := services.NewLightsparkClient(clientID, clientSecret, &endpointURL)
+func NewLightsparkUMAService(clientID, clientSecret, nodeID, nodePassword string, logger *slog.Logger) UMAService {
+	// Create Lightspark client - SDK handles endpoint internally
+	client := services.NewLightsparkClient(clientID, clientSecret, nil)
 
 	return &LightsparkUMAService{
 		logger:       logger,
@@ -45,7 +43,6 @@ func NewLightsparkUMAService(clientID, clientSecret, endpoint, nodeID, nodePassw
 		nodePassword: nodePassword,
 		clientID:     clientID,
 		clientSecret: clientSecret,
-		endpoint:     endpoint,
 		client:       client,
 	}
 }
