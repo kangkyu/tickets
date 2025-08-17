@@ -1,13 +1,14 @@
 package server
 
 import (
+	"log/slog"
 	"net/http"
 	"time"
 
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/jmoiron/sqlx"
-	"log/slog"
+
 	"tickets-by-uma/config"
 	"tickets-by-uma/apphandlers"
 	"tickets-by-uma/middleware"
