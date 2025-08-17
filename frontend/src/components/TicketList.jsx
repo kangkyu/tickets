@@ -3,16 +3,95 @@ import { Link } from 'react-router-dom'
 import { Calendar, MapPin, CheckCircle, Clock, XCircle, QrCode, Download, Mail } from 'lucide-react'
 import { useUserTickets } from '../hooks/useTickets'
 import { formatEventDate, formatPrice, formatSatsToUSD } from '../utils/formatters'
+import QRCodeDisplay from './QRCodeDisplay'
+import { useAuth } from '../contexts/AuthContext'
 
 const TicketList = () => {
-  // TODO: Get user ID from auth context when authentication is implemented
-  const userId = 1
-  const { data: tickets = [], isLoading, error } = useUserTickets(userId)
+  const { user, isAuthenticated } = useAuth()
+  const { data: response, isLoading, error } = useUserTickets(isAuthenticated && user?.id ? user.id : null)
+  
+  // Extract tickets from the response structure
+  const tickets = response?.data || response || []
+  
+  const [selectedStatus, setSelectedStatus] = useState('all')
+  const [selectedTicket, setSelectedTicket] = useState(null)
+
+  // Show loading or redirect if not authenticated
+  if (!isAuthenticated) {
+    return (
+      <div className="text-center py-12">
+        <div className="text-gray-400 text-6xl mb-4">🔒</div>
+        <h3 className="text-xl font-semibold text-gray-900 mb-2">Authentication Required</h3>
+        <p className="text-gray-600 mb-4">
+          Please sign in to view your tickets.
+        </p>
+        <Link to="/login" className="btn-primary">
+          Sign In
+        </Link>
+      </div>
+    )
+  }
+
+  // Show loading if user ID is not available yet
+  if (!user?.id) {
+    return (
+      <div className="text-center py-12">
+        <div className="loading-skeleton h-8 w-48 mx-auto mb-4"></div>
+        <div className="loading-skeleton h-4 w-64 mx-auto"></div>
+      </div>
+    )
+  }
+
+  // Show loading state while fetching tickets
+  if (isLoading) {
+    return (
+      <div className="space-y-8">
+        <div className="text-center">
+          <h1 className="text-3xl font-bold text-gray-900 mb-4">My Tickets</h1>
+          <p className="text-gray-600">View and manage your event tickets</p>
+        </div>
+        
+        <div className="space-y-4">
+          <div className="loading-skeleton h-10 w-48 rounded-lg mx-auto"></div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[...Array(3)].map((_, i) => (
+              <div key={i} className="card">
+                <div className="loading-skeleton h-32 w-full rounded-lg mb-4"></div>
+                <div className="space-y-3">
+                  <div className="loading-skeleton h-6 w-3/4 rounded"></div>
+                  <div className="loading-skeleton h-4 w-full rounded"></div>
+                  <div className="loading-skeleton h-4 w-2/3 rounded"></div>
+                  <div className="loading-skeleton h-10 w-full rounded-lg"></div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Show error state if API call failed
+  if (error) {
+    return (
+      <div className="text-center py-12">
+        <div className="text-red-500 text-6xl mb-4">⚠️</div>
+        <h2 className="text-2xl font-bold text-gray-900 mb-2">Unable to load tickets</h2>
+        <p className="text-gray-600 mb-4">{error.message}</p>
+        <button
+          onClick={() => window.location.reload()}
+          className="btn-primary"
+        >
+          Try Again
+        </button>
+      </div>
+    )
+  }
 
   // Filter tickets by status
-  const filteredTickets = tickets.filter(ticket => {
+  const filteredTickets = (Array.isArray(tickets) ? tickets : []).filter(ticket => {
     if (selectedStatus === 'all') return true
-    return ticket.status === selectedStatus
+    return ticket.payment_status === selectedStatus
   })
 
   // Get status icon and color
@@ -53,50 +132,12 @@ const TicketList = () => {
     }
   }
 
-  // Loading state
-  if (isLoading) {
-    return (
-      <div className="space-y-8">
-        <div className="text-center">
-          <h1 className="text-3xl font-bold text-gray-900 mb-4">My Tickets</h1>
-          <p className="text-gray-600">View and manage your event tickets</p>
-        </div>
-        
-        <div className="space-y-4">
-          <div className="loading-skeleton h-10 w-48 rounded-lg"></div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[...Array(3)].map((_, i) => (
-              <div key={i} className="card">
-                <div className="loading-skeleton h-32 w-full rounded-lg mb-4"></div>
-                <div className="space-y-3">
-                  <div className="loading-skeleton h-6 w-3/4 rounded"></div>
-                  <div className="loading-skeleton h-4 w-full rounded"></div>
-                  <div className="loading-skeleton h-4 w-2/3 rounded"></div>
-                  <div className="loading-skeleton h-10 w-full rounded-lg"></div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    )
+  const handleShowQRCode = (ticket) => {
+    setSelectedTicket(ticket)
   }
 
-  // Error state
-  if (error) {
-    return (
-      <div className="text-center py-12">
-        <div className="text-red-500 text-6xl mb-4">⚠️</div>
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">Unable to load tickets</h2>
-        <p className="text-gray-600 mb-4">{error.message}</p>
-        <button
-          onClick={() => window.location.reload()}
-          className="btn-primary"
-        >
-          Try Again
-        </button>
-      </div>
-    )
+  const handleCloseQRCode = () => {
+    setSelectedTicket(null)
   }
 
   return (
@@ -131,7 +172,7 @@ const TicketList = () => {
                 </span>
                 {status !== 'all' && (
                   <span className="bg-gray-200 text-gray-700 px-2 py-0.5 rounded-full text-xs">
-                    {tickets.filter(t => t.status === status).length}
+                    {Array.isArray(tickets) ? tickets.filter(t => t.payment_status === status).length : 0}
                   </span>
                 )}
               </button>
@@ -151,7 +192,7 @@ const TicketList = () => {
       {filteredTickets.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredTickets.map(ticket => {
-            const statusInfo = getStatusInfo(ticket.status)
+            const statusInfo = getStatusInfo(ticket.payment_status)
             const Icon = statusInfo.icon
             
             return (
@@ -161,7 +202,7 @@ const TicketList = () => {
                   <div className="w-full h-48 bg-gradient-to-br from-uma-500 to-uma-700 rounded-lg flex items-center justify-center">
                     <div className="text-center text-white">
                       <Calendar className="w-12 h-12 mx-auto mb-2 opacity-80" />
-                      <p className="text-sm font-semibold">{ticket.eventTitle.split(' ')[0]}</p>
+                      <p className="text-sm font-semibold">{ticket.event?.title?.split(' ')[0] || 'Event'}</p>
                       <p className="text-xs opacity-80">Event</p>
                     </div>
                   </div>
@@ -180,19 +221,19 @@ const TicketList = () => {
                 {/* Ticket Details */}
                 <div className="space-y-3">
                   <h3 className="text-lg font-semibold text-gray-900">
-                    {ticket.eventTitle}
+                    {ticket.event?.title || 'Unknown Event'}
                   </h3>
                   
                   <div className="space-y-2 text-sm text-gray-600">
                     <div className="flex items-center gap-2">
                       <Calendar className="w-4 h-4" />
-                      <span>{formatEventDate(ticket.eventDate)}</span>
+                      <span>{ticket.event?.start_time ? formatEventDate(new Date(ticket.event.start_time)) : 'Date TBD'}</span>
                     </div>
                     
-                    {ticket.eventLocation && (
+                    {ticket.event?.location && (
                       <div className="flex items-center gap-2">
                         <MapPin className="w-4 h-4" />
-                        <span>{ticket.eventLocation}</span>
+                        <span>{ticket.event.location}</span>
                       </div>
                     )}
                   </div>
@@ -204,24 +245,31 @@ const TicketList = () => {
                       <span className="font-mono text-gray-900">{ticket.id}</span>
                     </div>
                     <div className="flex justify-between text-sm">
+                      <span className="text-gray-500">Ticket Code:</span>
+                      <span className="font-mono text-gray-900">{ticket.ticket_code}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
                       <span className="text-gray-500">Price:</span>
                       <span className="font-medium text-gray-900">
-                        {formatPrice(ticket.price)}
+                        {ticket.event?.price_sats ? formatPrice(ticket.event.price_sats) : 'N/A'}
                       </span>
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-500">USD Value:</span>
                       <span className="text-gray-600">
-                        ≈ ${formatSatsToUSD(ticket.price)}
+                        {ticket.event?.price_sats ? `≈ $${formatSatsToUSD(ticket.event.price_sats)}` : 'N/A'}
                       </span>
                     </div>
                   </div>
 
                   {/* Actions */}
                   <div className="space-y-2">
-                    {ticket.status === 'paid' && (
+                    {ticket.payment_status === 'paid' && (
                       <>
-                        <button className="w-full btn-primary">
+                        <button 
+                          onClick={() => handleShowQRCode(ticket)}
+                          className="w-full btn-primary"
+                        >
                           <QrCode className="w-4 h-4 mr-2" />
                           Show QR Code
                         </button>
@@ -238,7 +286,7 @@ const TicketList = () => {
                       </>
                     )}
                     
-                    {ticket.status === 'pending' && (
+                    {ticket.payment_status === 'pending' && (
                       <Link
                         to={`/tickets/${ticket.id}/payment`}
                         className="w-full btn-uma"
@@ -247,9 +295,9 @@ const TicketList = () => {
                       </Link>
                     )}
                     
-                    {ticket.status === 'expired' && (
+                    {ticket.payment_status === 'expired' && (
                       <Link
-                        to={`/events/${ticket.eventId}`}
+                        to={`/events/${ticket.event?.id}`}
                         className="w-full btn-secondary"
                       >
                         View Event
@@ -264,31 +312,27 @@ const TicketList = () => {
       ) : (
         <div className="text-center py-12">
           <div className="text-gray-400 text-6xl mb-4">🎫</div>
-          <h3 className="text-xl font-semibold text-gray-900 mb-2">No tickets found</h3>
+          <h3 className="text-xl font-semibold text-gray-900 mb-2">
+            {selectedStatus === 'all' ? 'No tickets yet' : `No ${selectedStatus} tickets found`}
+          </h3>
           <p className="text-gray-600 mb-4">
             {selectedStatus === 'all' 
-              ? "You haven't purchased any tickets yet."
-              : `No ${selectedStatus} tickets found.`
+              ? "Start exploring events and purchase your first ticket with Lightning payments!"
+              : `No tickets with ${selectedStatus} status found. Try changing the filter or browse events.`
             }
           </p>
           <Link to="/" className="btn-primary">
-            Browse Events
+            {selectedStatus === 'all' ? 'Discover Events' : 'Browse Events'}
           </Link>
         </div>
       )}
 
-      {/* Empty State for No Tickets */}
-      {tickets.length === 0 && (
-        <div className="text-center py-12">
-          <div className="text-gray-400 text-6xl mb-4">🎫</div>
-          <h3 className="text-xl font-semibold text-gray-900 mb-2">No tickets yet</h3>
-          <p className="text-gray-600 mb-4">
-            Start exploring events and purchase your first ticket with Lightning payments!
-          </p>
-          <Link to="/" className="btn-primary">
-            Discover Events
-          </Link>
-        </div>
+      {/* QR Code Modal */}
+      {selectedTicket && (
+        <QRCodeDisplay
+          ticket={selectedTicket}
+          onClose={handleCloseQRCode}
+        />
       )}
     </div>
   )

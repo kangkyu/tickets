@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, useLocation, useNavigate } from 'react-router-dom'
-import { ArrowLeft, CheckCircle, XCircle, Clock, Copy, Download, Mail } from 'lucide-react'
+import { ArrowLeft, CheckCircle, XCircle, Clock, Copy, Download, Mail, RefreshCw } from 'lucide-react'
 import { formatPrice, formatSatsToUSD } from '../utils/formatters'
 import config from '../config/api'
 
@@ -14,15 +14,36 @@ const PaymentStatus = () => {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState(null)
   const [copySuccess, setCopySuccess] = useState(false)
+  const [isPolling, setIsPolling] = useState(false)
   
   // Get data from navigation state
   const { invoiceId, umaAddress, ticketData } = location.state || {}
+
+  // Debug logging
+  console.log('PaymentStatus component data:', {
+    ticketId,
+    invoiceId,
+    umaAddress,
+    ticketData,
+    locationState: location.state
+  })
 
   useEffect(() => {
     if (ticketId) {
       fetchTicketAndPaymentStatus()
     }
   }, [ticketId])
+
+  // Set up polling for payment status updates
+  useEffect(() => {
+    if (ticket?.payment_status === 'pending' && invoiceId) {
+      const pollInterval = setInterval(() => {
+        pollPaymentStatus()
+      }, 5000) // Poll every 5 seconds
+
+      return () => clearInterval(pollInterval)
+    }
+  }, [ticket?.payment_status, invoiceId])
 
   const fetchTicketAndPaymentStatus = async () => {
     try {
@@ -39,10 +60,21 @@ const PaymentStatus = () => {
       
       // Fetch payment status if we have an invoice ID
       if (invoiceId) {
-        const paymentResponse = await fetch(`${config.apiUrl}/api/payments/${invoiceId}/status`)
+        const authToken = localStorage.getItem('authToken')
+        const paymentResponse = await fetch(`${config.apiUrl}/api/payments/${invoiceId}/status`, {
+          headers: {
+            'Authorization': `Bearer ${authToken}`,
+            'Content-Type': 'application/json'
+          }
+        })
         if (paymentResponse.ok) {
           const paymentData = await paymentResponse.json()
           setPayment(paymentData.data)
+        } else if (paymentResponse.status === 401) {
+          console.warn('Payment status requires authentication')
+          // Payment status is protected, but we can still show ticket info
+        } else {
+          console.error('Failed to fetch payment status:', paymentResponse.status)
         }
       }
       
@@ -51,6 +83,50 @@ const PaymentStatus = () => {
       setError(err.message)
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const pollPaymentStatus = async () => {
+    if (isPolling) return // Prevent multiple simultaneous requests
+    
+    try {
+      setIsPolling(true)
+      
+      // Fetch updated ticket status
+      const ticketResponse = await fetch(`${config.apiUrl}/api/tickets/${ticketId}/status`)
+      if (ticketResponse.ok) {
+        const ticketData = await ticketResponse.json()
+        setTicket(ticketData.data)
+        
+        // If payment is now complete, stop polling
+        if (ticketData.data.payment_status === 'paid') {
+          setIsPolling(false)
+          // Show success message
+          setTimeout(() => {
+            navigate('/tickets', { replace: true })
+          }, 2000)
+        }
+      }
+      
+      // Fetch updated payment status (with auth)
+      if (invoiceId) {
+        const authToken = localStorage.getItem('authToken')
+        const paymentResponse = await fetch(`${config.apiUrl}/api/payments/${invoiceId}/status`, {
+          headers: {
+            'Authorization': `Bearer ${authToken}`,
+            'Content-Type': 'application/json'
+          }
+        })
+        if (paymentResponse.ok) {
+          const paymentData = await paymentResponse.json()
+          setPayment(paymentData.data)
+        }
+      }
+      
+    } catch (err) {
+      console.error('Failed to poll payment status:', err)
+    } finally {
+      setIsPolling(false)
     }
   }
 
@@ -211,6 +287,24 @@ const PaymentStatus = () => {
               </div>
             </div>
           )}
+
+          {/* Fallback when payment data isn't available */}
+          {!payment && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 max-w-md mx-auto">
+              <div className="text-center">
+                <Clock className="w-8 h-8 text-yellow-600 mx-auto mb-2" />
+                <p className="text-sm text-yellow-800 font-medium">Payment Information Loading</p>
+                <p className="text-xs text-yellow-700 mt-1">
+                  {invoiceId ? 'Fetching payment details...' : 'No invoice ID available'}
+                </p>
+                {!invoiceId && (
+                  <p className="text-xs text-yellow-600 mt-2">
+                    This usually means the ticket purchase wasn't completed properly.
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -226,7 +320,7 @@ const PaymentStatus = () => {
                 <p className="text-sm text-uma-700 mb-2 font-medium">UMA Address</p>
                 <p className="text-uma-900 font-mono">{umaAddress}</p>
                 <p className="text-xs text-uma-600 mt-1">
-                  This is the address where your payment will be sent
+                  This is the address where your payment will be sent via the Universal Money Address protocol
                 </p>
               </div>
             )}
@@ -235,12 +329,36 @@ const PaymentStatus = () => {
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <label className="text-sm font-medium text-gray-700">Lightning Invoice (BOLT11)</label>
-                <button
-                  onClick={() => copyToClipboard(payment.invoice.bolt11)}
-                  className="text-uma-600 hover:text-uma-700 text-sm font-medium"
-                >
-                  {copySuccess ? 'Copied!' : 'Copy'}
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={pollPaymentStatus}
+                    disabled={isPolling}
+                    className="text-uma-600 hover:text-uma-700 text-sm font-medium disabled:opacity-50"
+                  >
+                    <RefreshCw className={`w-4 h-4 ${isPolling ? 'animate-spin' : ''}`} />
+                    {isPolling ? 'Checking...' : 'Check Status'}
+                  </button>
+                  <button
+                    onClick={() => copyToClipboard(payment.invoice.bolt11)}
+                    className="text-uma-600 hover:text-uma-700 text-sm font-medium"
+                  >
+                    {copySuccess ? 'Copied!' : 'Copy'}
+                  </button>
+                </div>
+              </div>
+              
+              {/* QR Code for Mobile Wallets */}
+              <div className="text-center">
+                <div className="inline-block p-4 bg-white border-2 border-gray-200 rounded-lg">
+                  <img
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(payment.invoice.bolt11)}`}
+                    alt="Lightning Invoice QR Code"
+                    className="w-48 h-48"
+                  />
+                </div>
+                <p className="text-xs text-gray-500 mt-2">
+                  Scan with your Lightning wallet app
+                </p>
               </div>
               
               <div className="relative">
@@ -259,9 +377,16 @@ const PaymentStatus = () => {
                 </button>
               </div>
               
-              <p className="text-xs text-gray-500">
-                Scan this invoice with your Lightning wallet or copy it to complete the payment
-              </p>
+              <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
+                <h4 className="font-medium text-blue-900 mb-2">How to pay with UMA:</h4>
+                <ol className="text-sm text-blue-800 space-y-1">
+                  <li>1. Open your Lightning wallet app</li>
+                  <li>2. Scan the QR code or paste the invoice above</li>
+                  <li>3. Confirm the payment amount and UMA address</li>
+                  <li>4. Complete the payment</li>
+                  <li>5. Status will update automatically (or click "Check Status")</li>
+                </ol>
+              </div>
             </div>
 
             {/* Payment Expiry */}
@@ -275,6 +400,16 @@ const PaymentStatus = () => {
                 </div>
               </div>
             )}
+
+            {/* Auto-refresh Status */}
+            <div className="bg-gray-50 p-3 rounded-lg">
+              <div className="flex items-center gap-2">
+                <Clock className="w-4 h-4 text-gray-600" />
+                <p className="text-sm text-gray-700">
+                  Payment status updates automatically every 5 seconds
+                </p>
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -314,6 +449,20 @@ const PaymentStatus = () => {
             </>
           )}
         </div>
+
+        {/* Debug Information (only in development) */}
+        {import.meta.env.DEV && (
+          <div className="mt-6 p-4 bg-gray-100 rounded-lg">
+            <h4 className="text-sm font-medium text-gray-700 mb-2">Debug Info</h4>
+            <div className="text-xs text-gray-600 space-y-1">
+              <div>Ticket ID: {ticketId}</div>
+              <div>Invoice ID: {invoiceId || 'Not available'}</div>
+              <div>UMA Address: {umaAddress || 'Not available'}</div>
+              <div>Payment Data: {payment ? 'Available' : 'Not available'}</div>
+              <div>Ticket Data: {ticketData ? 'Available' : 'Not available'}</div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Actions */}

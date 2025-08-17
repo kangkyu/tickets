@@ -1,191 +1,142 @@
-import { useState, useEffect } from 'react'
-import { Copy, Check, Download } from 'lucide-react'
-import QRCode from 'qrcode'
+import { useState } from 'react'
+import { X, Download, Mail } from 'lucide-react'
 
-const QRCodeDisplay = ({ bolt11Invoice, amount, onCopy }) => {
-  const [qrCodeDataUrl, setQrCodeDataUrl] = useState('')
-  const [copied, setCopied] = useState(false)
-  const [error, setError] = useState('')
+const QRCodeDisplay = ({ ticket, onClose }) => {
+  const [isDownloading, setIsDownloading] = useState(false)
+  const [isEmailing, setIsEmailing] = useState(false)
 
-  // Generate QR code when invoice changes
-  useEffect(() => {
-    if (bolt11Invoice) {
-      generateQRCode(bolt11Invoice)
-    }
-  }, [bolt11Invoice])
+  // Generate QR code data (this would typically come from the backend)
+  const qrData = JSON.stringify({
+    ticket_id: ticket.id,
+    ticket_code: ticket.ticket_code,
+    event_id: ticket.event?.id,
+    user_id: ticket.user_id
+  })
 
-  const generateQRCode = async (invoice) => {
+  // For now, we'll use a placeholder QR code
+  // In production, you'd want to use a proper QR code library like qrcode.react
+  const generateQRCode = () => {
+    // This is a simple placeholder - replace with actual QR code generation
+    return `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrData)}`
+  }
+
+  const handleDownload = async () => {
+    setIsDownloading(true)
     try {
-      setError('')
-      const dataUrl = await QRCode.toDataURL(invoice, {
-        width: 256,
-        margin: 2,
-        color: {
-          dark: '#000000',
-          light: '#FFFFFF'
-        }
-      })
-      setQrCodeDataUrl(dataUrl)
-    } catch (err) {
-      setError('Failed to generate QR code')
-      console.error('QR code generation error:', err)
+      const response = await fetch(generateQRCode())
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `ticket-${ticket.ticket_code}.png`
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+    } catch (error) {
+      console.error('Failed to download QR code:', error)
+    } finally {
+      setIsDownloading(false)
     }
   }
 
-  const copyToClipboard = async () => {
+  const handleEmail = async () => {
+    setIsEmailing(true)
     try {
-      await navigator.clipboard.writeText(bolt11Invoice)
-      setCopied(true)
+      // In production, this would send the QR code via email
+      // For now, we'll just open the user's email client
+      const subject = encodeURIComponent(`Your Ticket for ${ticket.event?.title}`)
+      const body = encodeURIComponent(`
+Hi there!
+
+Here's your ticket for ${ticket.event?.title}:
+
+Ticket ID: ${ticket.id}
+Ticket Code: ${ticket.ticket_code}
+Event: ${ticket.event?.title}
+Date: ${ticket.event?.start_time ? new Date(ticket.event.start_time).toLocaleDateString() : 'TBD'}
+
+Please present this ticket at the event entrance.
+
+Best regards,
+UMA Tickets Team
+      `)
       
-      // Call parent callback if provided
-      if (onCopy) {
-        onCopy(bolt11Invoice)
-      }
-      
-      // Reset copied state after 2 seconds
-      setTimeout(() => setCopied(false), 2000)
-    } catch (err) {
-      console.error('Failed to copy to clipboard:', err)
-      // Fallback for older browsers
-      const textArea = document.createElement('textarea')
-      textArea.value = bolt11Invoice
-      document.body.appendChild(textArea)
-      textArea.select()
-      document.execCommand('copy')
-      document.body.removeChild(textArea)
-      
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
+      window.open(`mailto:?subject=${subject}&body=${body}`)
+    } catch (error) {
+      console.error('Failed to open email client:', error)
+    } finally {
+      setIsEmailing(false)
     }
-  }
-
-  const downloadQRCode = () => {
-    if (!qrCodeDataUrl) return
-    
-    const link = document.createElement('a')
-    link.download = `lightning-invoice-${Date.now()}.png`
-    link.href = qrCodeDataUrl
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-  }
-
-  if (error) {
-    return (
-      <div className="text-center p-6 bg-red-50 rounded-lg border border-red-200">
-        <div className="text-red-500 text-6xl mb-2">⚠️</div>
-        <p className="text-red-700 font-medium">{error}</p>
-        <button
-          onClick={() => generateQRCode(bolt11Invoice)}
-          className="btn-primary mt-3"
-        >
-          Try Again
-        </button>
-      </div>
-    )
   }
 
   return (
-    <div className="text-center space-y-4">
-      {/* QR Code */}
-      <div className="flex justify-center">
-        <div className="relative">
-          {qrCodeDataUrl ? (
-            <img
-              src={qrCodeDataUrl}
-              alt="Lightning Invoice QR Code"
-              className="w-64 h-64 border-4 border-gray-200 rounded-lg"
-            />
-          ) : (
-            <div className="w-64 h-64 bg-gray-100 border-4 border-gray-200 rounded-lg flex items-center justify-center">
-              <div className="text-gray-400">Generating QR code...</div>
-            </div>
-          )}
-          
-          {/* Amount Overlay */}
-          {amount && (
-            <div className="absolute bottom-2 left-1/2 transform -translate-x-1/2 bg-white px-3 py-1 rounded-full shadow-lg border border-gray-200">
-              <span className="text-sm font-semibold text-gray-900">
-                {amount} sats
-              </span>
-            </div>
-          )}
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg max-w-md w-full p-6">
+        {/* Header */}
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-semibold text-gray-900">Ticket QR Code</h2>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600 transition-colors"
+          >
+            <X className="w-6 h-6" />
+          </button>
         </div>
-      </div>
 
-      {/* Invoice Text */}
-      <div className="space-y-3">
-        <p className="text-sm text-gray-600">
-          Scan this QR code with your Lightning wallet to pay
-        </p>
-        
-        {/* Invoice Display */}
-        <div className="bg-gray-50 p-3 rounded-lg">
-          <p className="text-xs text-gray-500 mb-1">Lightning Invoice</p>
-          <div className="flex items-center justify-between">
-            <code className="text-xs text-gray-700 break-all flex-1 text-left mr-2">
-              {bolt11Invoice}
-            </code>
-            <button
-              onClick={copyToClipboard}
-              className="flex-shrink-0 p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-              title="Copy invoice"
-            >
-              {copied ? (
-                <Check className="w-4 h-4 text-green-500" />
-              ) : (
-                <Copy className="w-4 h-4" />
-              )}
-            </button>
+        {/* Event Info */}
+        <div className="mb-4 p-3 bg-gray-50 rounded-lg">
+          <h3 className="font-semibold text-gray-900">{ticket.event?.title}</h3>
+          <p className="text-sm text-gray-600">
+            {ticket.event?.start_time ? new Date(ticket.event.start_time).toLocaleDateString() : 'Date TBD'}
+          </p>
+        </div>
+
+        {/* QR Code */}
+        <div className="text-center mb-6">
+          <div className="inline-block p-4 bg-white border-2 border-gray-200 rounded-lg">
+            <img
+              src={generateQRCode()}
+              alt="Ticket QR Code"
+              className="w-48 h-48"
+            />
+          </div>
+          <p className="text-xs text-gray-500 mt-2">
+            Scan this QR code at the event entrance
+          </p>
+        </div>
+
+        {/* Ticket Details */}
+        <div className="mb-6 space-y-2 text-sm">
+          <div className="flex justify-between">
+            <span className="text-gray-500">Ticket ID:</span>
+            <span className="font-mono text-gray-900">{ticket.id}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-500">Ticket Code:</span>
+            <span className="font-mono text-gray-900">{ticket.ticket_code}</span>
           </div>
         </div>
 
-        {/* Action Buttons */}
-        <div className="flex gap-3 justify-center">
+        {/* Actions */}
+        <div className="flex gap-3">
           <button
-            onClick={copyToClipboard}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
-              copied
-                ? 'bg-green-100 text-green-700 border border-green-200'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-200'
-            }`}
-          >
-            {copied ? (
-              <>
-                <Check className="w-4 h-4" />
-                Copied!
-              </>
-            ) : (
-              <>
-                <Copy className="w-4 h-4" />
-                Copy Invoice
-              </>
-            )}
-          </button>
-          
-          <button
-            onClick={downloadQRCode}
-            disabled={!qrCodeDataUrl}
-            className="flex items-center gap-2 px-4 py-2 bg-white text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            onClick={handleDownload}
+            disabled={isDownloading}
+            className="flex-1 btn-secondary flex items-center justify-center gap-2"
           >
             <Download className="w-4 h-4" />
-            Download QR
+            {isDownloading ? 'Downloading...' : 'Download'}
+          </button>
+          <button
+            onClick={handleEmail}
+            disabled={isEmailing}
+            className="flex-1 btn-secondary flex items-center justify-center gap-2"
+          >
+            <Mail className="w-4 h-4" />
+            {isEmailing ? 'Opening...' : 'Email'}
           </button>
         </div>
-      </div>
-
-      {/* Instructions */}
-      <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-        <h4 className="font-medium text-blue-900 mb-2">How to pay:</h4>
-        <ol className="text-sm text-blue-800 space-y-1 text-left">
-          <li>1. Open your Lightning wallet app</li>
-          <li>2. Scan the QR code above</li>
-          <li>3. Confirm the payment amount</li>
-          <li>4. Complete the payment</li>
-        </ol>
-        <p className="text-xs text-blue-600 mt-2">
-          Payment will be confirmed automatically once received
-        </p>
       </div>
     </div>
   )

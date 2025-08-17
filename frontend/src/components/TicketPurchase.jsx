@@ -63,13 +63,38 @@ const TicketPurchase = () => {
     const address = e.target.value
     setValue('umaAddress', address)
     
-    if (address) {
-      const validation = validateUMAAddress(address)
-      if (!validation.isValid) {
-        setValue('umaAddress', address, { shouldValidate: true })
-        await trigger('umaAddress')
-      }
+    // Trigger validation immediately
+    const validation = validateUMAAddress(address)
+    if (validation.isValid) {
+      // Clear any existing errors
+      setValue('umaAddress', address, { shouldValidate: true, shouldDirty: true })
+    } else {
+      // Set the error
+      setValue('umaAddress', address, { shouldValidate: true, shouldDirty: true })
     }
+    
+    // Trigger form validation
+    await trigger('umaAddress')
+  }
+
+  // Check if form is valid for submission
+  const isFormValid = () => {
+    const umaAddress = watchedValues.umaAddress
+    const userName = watchedValues.userName
+    const userEmail = watchedValues.userEmail
+    
+    const umaValid = validateUMAAddress(umaAddress).isValid
+    
+    // Debug logging
+    console.log('Form validation state:', {
+      umaAddress,
+      userName,
+      userEmail,
+      umaValid,
+      allValid: umaAddress && userName && userEmail && umaValid
+    })
+    
+    return umaAddress && userName && userEmail && umaValid
   }
 
   // Handle form submission
@@ -298,12 +323,24 @@ const TicketPurchase = () => {
                           }
                         })}
                         onChange={handleUMAAddressChange}
-                        className="input-field pl-10 border-uma-200 focus:border-uma-500 focus:ring-uma-500"
+                        className={`input-field pl-10 ${
+                          watchedValues.umaAddress && validateUMAAddress(watchedValues.umaAddress).isValid
+                            ? 'border-green-500 focus:border-green-500 focus:ring-green-500'
+                            : watchedValues.umaAddress && !validateUMAAddress(watchedValues.umaAddress).isValid
+                            ? 'border-red-500 focus:border-red-500 focus:ring-red-500'
+                            : 'border-uma-200 focus:border-uma-500 focus:ring-uma-500'
+                        }`}
                         placeholder="$username@domain.com"
                       />
+                      {watchedValues.umaAddress && validateUMAAddress(watchedValues.umaAddress).isValid && (
+                        <CheckCircle className="absolute right-3 top-1/2 transform -translate-y-1/2 text-green-500 w-5 h-5" />
+                      )}
                     </div>
                     {errors.umaAddress && (
                       <p className="mt-1 text-sm text-red-600">{errors.umaAddress.message}</p>
+                    )}
+                    {watchedValues.umaAddress && validateUMAAddress(watchedValues.umaAddress).isValid && (
+                      <p className="mt-1 text-sm text-green-600">✓ Valid UMA address</p>
                     )}
                     <p className="mt-1 text-xs text-gray-500">
                       Enter your UMA address for Lightning Network payment processing
@@ -325,7 +362,7 @@ const TicketPurchase = () => {
                 {/* Submit Button */}
                 <button
                   type="submit"
-                  disabled={!isValid || isCreatingPayment}
+                  disabled={!isFormValid() || isCreatingPayment}
                   className="btn-uma w-full disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isCreatingPayment ? 'Creating Payment...' : 'Continue to Payment'}
