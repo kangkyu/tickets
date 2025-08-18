@@ -74,19 +74,19 @@ func AuthMiddleware(secret string) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			authHeader := r.Header.Get("Authorization")
 			if authHeader == "" {
-				http.Error(w, "Authorization header required", http.StatusUnauthorized)
+				WriteError(w, http.StatusUnauthorized, "Authorization header required")
 				return
 			}
 
 			tokenString := strings.TrimPrefix(authHeader, "Bearer ")
 			if tokenString == authHeader {
-				http.Error(w, "Bearer token required", http.StatusUnauthorized)
+				WriteError(w, http.StatusUnauthorized, "Bearer token required")
 				return
 			}
 
 			claims, err := ValidateToken(tokenString, secret)
 			if err != nil {
-				http.Error(w, "Invalid token", http.StatusUnauthorized)
+				WriteError(w, http.StatusUnauthorized, "Invalid token")
 				return
 			}
 
@@ -107,19 +107,19 @@ func RequireAuth(secret string, handler http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		authHeader := r.Header.Get("Authorization")
 		if authHeader == "" {
-			http.Error(w, "Authorization header required", http.StatusUnauthorized)
+			WriteError(w, http.StatusUnauthorized, "Authorization header required")
 			return
 		}
 
 		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
 		if tokenString == authHeader {
-			http.Error(w, "Bearer token required", http.StatusUnauthorized)
+			WriteError(w, http.StatusUnauthorized, "Bearer token required")
 			return
 		}
 
 		claims, err := ValidateToken(tokenString, secret)
 		if err != nil {
-			http.Error(w, "Invalid token", http.StatusUnauthorized)
+			WriteError(w, http.StatusUnauthorized, "Invalid token")
 			return
 		}
 
