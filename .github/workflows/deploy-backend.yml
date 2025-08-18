@@ -41,7 +41,7 @@ jobs:
         IMAGE_TAG: ${{ github.sha }}
       run: |
         # Build the Docker image
-        docker build -f backend/Dockerfile.prod -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG backend/
+        docker build -f backend/Dockerfile -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG backend/
         docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
         
         # Push the image
