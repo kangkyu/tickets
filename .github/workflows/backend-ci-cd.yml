@@ -58,6 +58,18 @@ jobs:
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: ${{ env.AWS_REGION }}
 
+    - name: Check ECR repository exists
+      run: |
+        echo "🔍 Checking if ECR repository exists..."
+        if ! aws ecr describe-repositories \
+          --repository-names ${{ env.ECR_REPOSITORY }} \
+          --region ${{ env.AWS_REGION }} >/dev/null 2>&1; then
+          echo "❌ ECR repository ${{ env.ECR_REPOSITORY }} does not exist"
+          echo "💡 Please run 'terraform apply' first to create the infrastructure"
+          exit 1
+        fi
+        echo "✅ ECR repository exists"
+
     - name: Login to Amazon ECR
       id: login-ecr
       uses: aws-actions/amazon-ecr-login@v2
@@ -112,7 +124,23 @@ jobs:
       run: |
         echo "🚀 Deploying to ECS..."
         
+        # Check if service exists first
+        echo "🔍 Checking if ECS service exists..."
+        if ! aws ecs describe-services \
+          --cluster ${{ env.ECS_CLUSTER }} \
+          --services ${{ env.ECS_SERVICE }} \
+          --region ${{ env.AWS_REGION }} \
+          --query 'services[0].status' \
+          --output text 2>/dev/null | grep -q "ACTIVE"; then
+          echo "❌ ECS service ${{ env.ECS_SERVICE }} does not exist or is not active"
+          echo "💡 Please run 'terraform apply' first to create the infrastructure"
+          exit 1
+        fi
+        
+        echo "✅ ECS service exists and is active"
+        
         # Force new deployment
+        echo "🔄 Forcing new deployment..."
         aws ecs update-service \
           --cluster ${{ env.ECS_CLUSTER }} \
           --service ${{ env.ECS_SERVICE }} \
@@ -121,12 +149,56 @@ jobs:
         
         echo "✅ ECS service updated successfully!"
         
-        # Wait for deployment to complete
-        echo "⏳ Waiting for deployment to complete..."
-        aws ecs wait services-stable \
+        # Show current deployment status
+        echo "🔍 Current deployment status:"
+        aws ecs describe-services \
           --cluster ${{ env.ECS_CLUSTER }} \
           --services ${{ env.ECS_SERVICE }} \
-          --region ${{ env.AWS_REGION }}
+          --region ${{ env.AWS_REGION }} \
+          --query 'services[0].deployments[*].{Status:status,Type:type,UpdatedAt:updatedAt}' \
+          --output table
+        
+        # Wait for deployment to complete with timeout
+        echo "⏳ Waiting for deployment to complete (timeout: 10 minutes)..."
+        timeout 600 bash -c '
+          while true; do
+            # Simple check: is the service stable and running?
+            RUNNING_COUNT=$(aws ecs describe-services \
+              --cluster ${{ env.ECS_CLUSTER }} \
+              --services ${{ env.ECS_SERVICE }} \
+              --region ${{ env.AWS_REGION }} \
+              --query "services[0].runningCount" \
+              --output text)
+            
+            DESIRED_COUNT=$(aws ecs describe-services \
+              --cluster ${{ env.ECS_CLUSTER }} \
+              --services ${{ env.ECS_SERVICE }} \
+              --region ${{ env.AWS_REGION }} \
+              --query "services[0].desiredCount" \
+              --output text)
+            
+            echo "⏳ Running: $RUNNING_COUNT, Desired: $DESIRED_COUNT"
+            
+            if [ "$RUNNING_COUNT" = "$DESIRED_COUNT" ] && [ "$RUNNING_COUNT" -gt 0 ]; then
+              echo "✅ Service is stable and running!"
+              break
+            else
+              sleep 30
+            fi
+          done
+        '
+        
+        if [ $? -eq 124 ]; then
+          echo "⏰ Deployment timed out after 10 minutes"
+          echo "🔍 Checking service status..."
+          aws ecs describe-services \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --services ${{ env.ECS_SERVICE }} \
+            --region ${{ env.AWS_REGION }} \
+            --query 'services[0].{Status:status,DesiredCount:desiredCount,RunningCount:runningCount,PendingCount:pendingCount}' \
+            --output table
+          exit 1
+        fi
         
         echo "🎉 Deployment completed successfully!"
 

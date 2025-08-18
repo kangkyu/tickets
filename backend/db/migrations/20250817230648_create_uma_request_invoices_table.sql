@@ -19,4 +19,3 @@ CREATE INDEX IF NOT EXISTS idx_uma_invoices_status ON uma_request_invoices(statu
 
 -- migrate:down
 DROP TABLE IF EXISTS uma_request_invoices;
-
