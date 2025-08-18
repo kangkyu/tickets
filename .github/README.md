@@ -18,10 +18,10 @@ This guide explains how to set up the GitHub Actions workflows for automated bac
 
 ## **AWS Configuration:**
 
-**ECR Repository:** `800097198265.dkr.ecr.us-east-1.amazonaws.com/uma-tickets/backend`
+**ECR Repository:** `800097198265.dkr.ecr.us-east-1.amazonaws.com/uma-tickets-staging/backend`
 **ECS Configuration:**
-- **Cluster**: `uma-tickets-cluster`
-- **Service**: `uma-tickets-backend`
+- **Cluster**: `uma-tickets-staging-cluster`
+- **Service**: `uma-tickets-staging-backend`
 
 ## Required GitHub Secrets
 

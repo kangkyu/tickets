@@ -729,8 +729,8 @@ EOT
 
 # Updated Amplify branch with CloudFront support
 resource "aws_amplify_branch" "main" {
-  app_id      = aws_amplify_app.frontend.id
-  branch_name = var.main_branch_name
+  app_id            = aws_amplify_app.frontend.id
+  branch_name       = var.main_branch_name
   enable_auto_build = true
 
   # Updated environment variables for the new setup
@@ -754,14 +754,14 @@ resource "aws_amplify_domain_association" "main" {
   # Add subdomain for API if needed
   sub_domain {
     branch_name = aws_amplify_branch.main.branch_name
-    prefix      = ""  # Root domain
+    prefix      = "" # Root domain
   }
 }
 
 # ACM certificate for ALB (in your main region)
 resource "aws_acm_certificate" "alb" {
   count       = var.use_custom_domain ? 1 : 0
-  domain_name = "api.${var.domain_name}"  # api.fanmeeting.org
+  domain_name = "api.${var.domain_name}" # api.fanmeeting.org
 
   validation_method = "DNS"
 
