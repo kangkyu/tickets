@@ -11,9 +11,9 @@ on:
 
 env:
   AWS_REGION: us-east-1
-  ECR_REPOSITORY: uma-tickets-staging/backend
-  ECS_CLUSTER: uma-tickets-staging-cluster
-  ECS_SERVICE: uma-tickets-staging-backend
+  ECR_REPOSITORY: uma-tickets/backend
+  ECS_CLUSTER: uma-tickets-cluster
+  ECS_SERVICE: uma-tickets-backend
 
 jobs:
   test:
