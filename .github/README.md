@@ -16,11 +16,12 @@ This guide explains how to set up the GitHub Actions workflows for automated bac
 2. **Build and Push** - Builds Docker image and pushes to ECR
 3. **Deploy** - Deploys to ECS (main/master only)
 
-**ECR Repository:** `800097198265.dkr.ecr.us-east-1.amazonaws.com/uma-tickets-staging/backend`
+## **AWS Configuration:**
 
+**ECR Repository:** `800097198265.dkr.ecr.us-east-1.amazonaws.com/uma-tickets/backend`
 **ECS Configuration:**
-- **Cluster**: `uma-tickets-staging-cluster`
-- **Service**: `uma-tickets-staging-backend`
+- **Cluster**: `uma-tickets-cluster`
+- **Service**: `uma-tickets-backend`
 
 ## Required GitHub Secrets
 
