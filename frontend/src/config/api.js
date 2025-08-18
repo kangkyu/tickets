@@ -6,18 +6,6 @@ const config = {
   paymentTimeout: 300000, // 5 minutes in milliseconds
   maxRetries: 3,
   requestTimeout: 10000, // 10 seconds
-
-  // CORS proxy for development (when using production backend)
-  corsProxy: import.meta.env.VITE_CORS_PROXY || 'https://cors-anywhere.herokuapp.com/',
-
-  // Get the appropriate API URL (with proxy if needed for development)
-  getApiUrl: function() {
-    // Use proxy for development when connecting to production backend
-    if (this.isDevelopment && import.meta.env.VITE_USE_CORS_PROXY === 'true') {
-      return this.corsProxy + this.apiUrl
-    }
-    return this.apiUrl
-  }
 }
 
 export default config

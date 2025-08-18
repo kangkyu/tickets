@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { Calendar, Users } from 'lucide-react'
+import { Calendar, Users, CheckCircle, Ticket } from 'lucide-react'
 import { formatEventDateShort, formatPrice, truncateText } from '../utils/formatters'
 
 const EventCard = ({ event }) => {
@@ -12,7 +12,8 @@ const EventCard = ({ event }) => {
     price_sats,
     capacity,
     is_active,
-    stream_url
+    stream_url,
+    user_has_ticket
   } = event
 
   // For now, assume all capacity is available (no ticket counting implemented yet)
@@ -31,6 +32,15 @@ const EventCard = ({ event }) => {
             <p className="text-sm opacity-80">Event</p>
           </div>
         </div>
+        
+        {/* Ticket Purchase Status Badge */}
+        {user_has_ticket && (
+          <span className="absolute top-3 left-3 bg-green-500 text-white text-xs font-medium px-2 py-1 rounded-full flex items-center gap-1">
+            <CheckCircle className="w-3 h-3" />
+            Ticket Purchased
+          </span>
+        )}
+        
         {availableTickets <= 5 && availableTickets > 0 && (
           <span className="absolute top-3 right-3 bg-orange-500 text-white text-xs font-medium px-2 py-1 rounded-full">
             Only {availableTickets} left!
@@ -74,7 +84,15 @@ const EventCard = ({ event }) => {
 
         {/* Action Button */}
         <div className="pt-2">
-          {availableTickets > 0 ? (
+          {user_has_ticket ? (
+            <Link
+              to="/tickets"
+              className="btn-secondary w-full text-center flex items-center justify-center gap-2"
+            >
+              <Ticket className="w-4 h-4" />
+              View My Ticket
+            </Link>
+          ) : availableTickets > 0 ? (
             <Link
               to={`/events/${id}`}
               className="btn-uma w-full text-center"

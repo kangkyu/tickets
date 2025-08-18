@@ -22,3 +22,4 @@ git push origin master
 
 ### TODO
 - Add certificate for HTTPS backend
+- Pay and get paid on testnet

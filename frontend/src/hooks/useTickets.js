@@ -24,8 +24,9 @@ export const useUserTickets = (userId) => {
   return useQuery({
     queryKey: ['userTickets', userId],
     queryFn: () => ticketsAPI.getUserTickets(userId),
-    enabled: !!userId,
+    enabled: !!userId && userId > 0,
     staleTime: 2 * 60 * 1000,
+    retry: false,
   })
 }
 

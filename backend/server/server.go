@@ -1,33 +1,35 @@
 package server
 
 import (
+	"log/slog"
 	"net/http"
 	"time"
 
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/jmoiron/sqlx"
-	"log/slog"
-	"tickets-by-uma/config"
+
 	"tickets-by-uma/apphandlers"
+	"tickets-by-uma/config"
 	"tickets-by-uma/middleware"
 	"tickets-by-uma/repositories"
 	"tickets-by-uma/services"
 )
 
 type Server struct {
-	db             *sqlx.DB
-	logger         *slog.Logger
-	config         *config.Config
-	userRepo       repositories.UserRepository
-	eventRepo      repositories.EventRepository
-	ticketRepo     repositories.TicketRepository
-	paymentRepo    repositories.PaymentRepository
-	umaService     services.UMAService
-	router         *mux.Router
-	userHandlers   *apphandlers.UserHandlers
-	eventHandlers  *apphandlers.EventHandlers
-	ticketHandlers *apphandlers.TicketHandlers
+	db              *sqlx.DB
+	logger          *slog.Logger
+	config          *config.Config
+	userRepo        repositories.UserRepository
+	eventRepo       repositories.EventRepository
+	ticketRepo      repositories.TicketRepository
+	paymentRepo     repositories.PaymentRepository
+	umaRepo         repositories.UMARequestInvoiceRepository
+	umaService      services.UMAService
+	router          *mux.Router
+	userHandlers    *apphandlers.UserHandlers
+	eventHandlers   *apphandlers.EventHandlers
+	ticketHandlers  *apphandlers.TicketHandlers
 	paymentHandlers *apphandlers.PaymentHandlers
 }
 
@@ -44,18 +46,20 @@ func NewServer(db *sqlx.DB, logger *slog.Logger, config *config.Config) *Server 
 	s.eventRepo = repositories.NewEventRepository(db)
 	s.ticketRepo = repositories.NewTicketRepository(db)
 	s.paymentRepo = repositories.NewPaymentRepository(db)
-	
+	s.umaRepo = repositories.NewUMARequestInvoiceRepository(db)
+
 	// Initialize UMA service
 	s.umaService = services.NewLightsparkUMAService(
-		config.LightsparkAPIToken,
-		config.LightsparkEndpoint,
+		config.LightsparkClientID,
+		config.LightsparkClientSecret,
 		config.LightsparkNodeID,
+		config.LightsparkNodePassword,
 		logger,
 	)
 
 	// Initialize handlers
 	s.initializeHandlers()
-	
+
 	s.setupRoutes()
 	return s
 }
@@ -63,7 +67,7 @@ func NewServer(db *sqlx.DB, logger *slog.Logger, config *config.Config) *Server 
 func (s *Server) setupRoutes() {
 	// Add CORS middleware to main router (covers all endpoints)
 	s.router.Use(s.corsMiddleware)
-	
+
 	// Add logging middleware
 	s.router.Use(s.loggingMiddleware)
 
@@ -89,6 +93,7 @@ func (s *Server) setupRoutes() {
 	api.HandleFunc("/tickets/purchase", s.ticketHandlers.HandlePurchaseTicket).Methods("POST", "OPTIONS")
 	api.HandleFunc("/tickets/{id:[0-9]+}/status", s.ticketHandlers.HandleTicketStatus).Methods("GET", "OPTIONS")
 	api.HandleFunc("/tickets/validate", s.ticketHandlers.HandleValidateTicket).Methods("POST", "OPTIONS")
+	api.HandleFunc("/tickets/uma-callback", s.ticketHandlers.HandleUMAPaymentCallback).Methods("POST", "OPTIONS")
 
 	// Payment webhook (no auth required)
 	api.HandleFunc("/webhooks/payment", s.paymentHandlers.HandlePaymentWebhook).Methods("POST", "OPTIONS")
@@ -117,6 +122,10 @@ func (s *Server) setupRoutes() {
 	admin.HandleFunc("/events", s.eventHandlers.HandleCreateEvent).Methods("POST", "OPTIONS")
 	admin.HandleFunc("/events/{id:[0-9]+}", s.eventHandlers.HandleUpdateEvent).Methods("PUT", "OPTIONS")
 	admin.HandleFunc("/events/{id:[0-9]+}", s.eventHandlers.HandleDeleteEvent).Methods("DELETE", "OPTIONS")
+	
+	// Admin UMA routes
+	admin.HandleFunc("/uma/requests", s.eventHandlers.HandleCreateUMARequest).Methods("POST", "OPTIONS")
+	admin.HandleFunc("/events/{id:[0-9]+}/uma-invoice", s.eventHandlers.HandleCreateEventUMAInvoice).Methods("POST", "OPTIONS")
 
 	// Admin payment routes
 	admin.HandleFunc("/payments/pending", s.paymentHandlers.HandleGetPendingPayments).Methods("GET", "OPTIONS")
@@ -126,7 +135,7 @@ func (s *Server) setupRoutes() {
 // Initialize handlers
 func (s *Server) initializeHandlers() {
 	s.userHandlers = apphandlers.NewUserHandlers(s.userRepo, s.logger, s.config.JWTSecret)
-	s.eventHandlers = apphandlers.NewEventHandlers(s.eventRepo, s.logger)
+	s.eventHandlers = apphandlers.NewEventHandlers(s.eventRepo, s.paymentRepo, s.ticketRepo, s.umaService, s.umaRepo, s.logger, s.config)
 	s.ticketHandlers = apphandlers.NewTicketHandlers(s.ticketRepo, s.eventRepo, s.paymentRepo, s.umaService, s.logger)
 	s.paymentHandlers = apphandlers.NewPaymentHandlers(s.paymentRepo, s.ticketRepo, s.umaService, s.logger)
 }
@@ -153,7 +162,7 @@ func (s *Server) loggingMiddleware(next http.Handler) http.Handler {
 		wrapped := &responseWriter{ResponseWriter: w, statusCode: http.StatusOK}
 
 		next.ServeHTTP(wrapped, r)
-		
+
 		duration := time.Since(start)
 
 		s.logger.Info("HTTP Request",

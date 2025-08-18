@@ -68,6 +68,19 @@ func (r *ticketRepository) GetByUserID(userID int) ([]models.Ticket, error) {
 	return tickets, err
 }
 
+func (r *ticketRepository) GetByInvoiceID(invoiceID string) (*models.Ticket, error) {
+	ticket := &models.Ticket{}
+	query := `SELECT * FROM tickets WHERE invoice_id = $1`
+	err := r.db.Get(ticket, query, invoiceID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return ticket, nil
+}
+
 func (r *ticketRepository) Update(ticket *models.Ticket) error {
 	query := `
 		UPDATE tickets 
@@ -110,4 +123,15 @@ func (r *ticketRepository) CountByEventAndStatus(eventID int, status string) (in
 	query := `SELECT COUNT(*) FROM tickets WHERE event_id = $1 AND payment_status = $2`
 	err := r.db.Get(&count, query, eventID, status)
 	return count, err
+}
+
+// HasUserTicketForEvent checks if a user has any tickets for a specific event
+func (r *ticketRepository) HasUserTicketForEvent(userID, eventID int) (bool, error) {
+	var count int
+	query := `SELECT COUNT(*) FROM tickets WHERE user_id = $1 AND event_id = $2`
+	err := r.db.Get(&count, query, userID, eventID)
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
 }

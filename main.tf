@@ -82,6 +82,12 @@ variable "lightspark_node_id" {
   sensitive   = true
 }
 
+variable "lightspark_node_password" {
+  description = "Lightspark Node Password"
+  type        = string
+  sensitive   = true
+}
+
 variable "main_branch_name" {
   description = "Main branch name (e.g., master, main)"
   type        = string
@@ -324,7 +330,7 @@ resource "aws_db_subnet_group" "main" {
 resource "aws_db_instance" "postgres" {
   identifier            = "${var.app_name}-postgres"
   engine                = "postgres"
-  engine_version        = "15.7"
+  engine_version        = "15.12"
   instance_class        = var.database_instance_class
   allocated_storage     = var.database_allocated_storage
   max_allocated_storage = 100
@@ -402,10 +408,6 @@ resource "aws_ecs_task_definition" "backend" {
           value = "postgres://${var.database_username}:${random_password.db_password.result}@${aws_db_instance.postgres.endpoint}/${var.database_name}?sslmode=require"
         },
         {
-          name  = "LIGHTSPARK_ENDPOINT"
-          value = "api.lightspark.com"
-        },
-        {
           name  = "JWT_SECRET"
           value = random_password.jwt_secret.result
         }
@@ -423,6 +425,10 @@ resource "aws_ecs_task_definition" "backend" {
         {
           name      = "LIGHTSPARK_NODE_ID"
           valueFrom = aws_ssm_parameter.lightspark_node_id.arn
+        },
+        {
+          name      = "LIGHTSPARK_NODE_PASSWORD"
+          valueFrom = aws_ssm_parameter.lightspark_node_password.arn
         }
       ]
 
@@ -589,7 +595,8 @@ resource "aws_iam_role_policy" "ecs_execution_ssm" {
         Resource = [
           aws_ssm_parameter.lightspark_client_id.arn,
           aws_ssm_parameter.lightspark_client_secret.arn,
-          aws_ssm_parameter.lightspark_node_id.arn
+          aws_ssm_parameter.lightspark_node_id.arn,
+          aws_ssm_parameter.lightspark_node_password.arn
         ]
       }
     ]
@@ -659,6 +666,17 @@ resource "aws_ssm_parameter" "lightspark_node_id" {
 
   tags = {
     Name        = "${var.app_name}-lightspark-node-id"
+    Environment = var.environment
+  }
+}
+
+resource "aws_ssm_parameter" "lightspark_node_password" {
+  name  = "/${var.app_name}/lightspark/node_password"
+  type  = "SecureString"
+  value = var.lightspark_node_password
+
+  tags = {
+    Name        = "${var.app_name}-lightspark-node-password"
     Environment = var.environment
   }
 }

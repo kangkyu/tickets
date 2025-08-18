@@ -121,6 +121,20 @@ const Layout = ({ children }) => {
                         My Tickets
                       </Link>
                       
+                      {/* Admin Link - only show for admin users */}
+                      {user && ['admin@example.com'].includes(user.email) && (
+                        <Link
+                          to="/admin"
+                          onClick={() => setIsUserMenuOpen(false)}
+                          className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 border-t border-gray-100"
+                        >
+                          <div className="w-4 h-4 mr-2 bg-uma-600 rounded flex items-center justify-center">
+                            <span className="text-white text-xs font-bold">A</span>
+                          </div>
+                          Admin Dashboard
+                        </Link>
+                      )}
+                      
                       <button
                         onClick={handleLogout}
                         className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
@@ -193,6 +207,20 @@ const Layout = ({ children }) => {
                     </p>
                     <p className="text-sm text-gray-500">{user?.email}</p>
                   </div>
+                  
+                  {/* Mobile Admin Link */}
+                  {user && ['admin@example.com'].includes(user.email) && (
+                    <Link
+                      to="/admin"
+                      onClick={() => setIsMobileMenuOpen(false)}
+                      className="flex items-center px-3 py-2 text-base font-medium text-uma-600 hover:bg-uma-50"
+                    >
+                      <div className="w-4 h-4 mr-3 bg-uma-600 rounded flex items-center justify-center">
+                        <span className="text-white text-xs font-bold">A</span>
+                      </div>
+                      Admin Dashboard
+                    </Link>
+                  )}
                   <button
                     onClick={() => {
                       handleLogout()

@@ -8,6 +8,10 @@ import PaymentStatus from './components/PaymentStatus'
 import TicketList from './components/TicketList'
 import Login from './components/Login'
 import ProtectedRoute from './components/ProtectedRoute'
+import AdminRoute from './components/AdminRoute'
+import AdminDashboard from './components/AdminDashboard'
+import CreateEvent from './components/CreateEvent'
+import EditEvent from './components/EditEvent'
 
 // Component to normalize paths and redirect if needed
 function PathNormalizer({ children }) {
@@ -49,6 +53,23 @@ function App() {
               <ProtectedRoute>
                 <TicketList />
               </ProtectedRoute>
+            } />
+            
+            {/* Admin routes - require admin privileges */}
+            <Route path="/admin" element={
+              <AdminRoute>
+                <AdminDashboard />
+              </AdminRoute>
+            } />
+            <Route path="/admin/events/new" element={
+              <AdminRoute>
+                <CreateEvent />
+              </AdminRoute>
+            } />
+            <Route path="/admin/events/:eventId/edit" element={
+              <AdminRoute>
+                <EditEvent />
+              </AdminRoute>
             } />
           </Routes>
         </PathNormalizer>
