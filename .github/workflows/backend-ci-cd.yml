@@ -1,0 +1,152 @@
+name: Backend CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, master ]
+    paths: [ 'backend/**' ]
+  pull_request:
+    branches: [ main, master ]
+    paths: [ 'backend/**' ]
+  workflow_dispatch:
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY: uma-tickets-staging/backend
+  ECS_CLUSTER: uma-tickets-staging-cluster
+  ECS_SERVICE: uma-tickets-staging-backend
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.22'
+        cache: true
+
+    - name: Run tests
+      working-directory: ./backend
+      run: |
+        go mod download
+        go test -v ./...
+
+    - name: Build Go binary
+      working-directory: ./backend
+      run: |
+        go build -o main .
+
+  build-and-push:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v2
+
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}
+        tags: |
+          type=sha,prefix=
+          type=ref,event=branch
+          type=ref,event=pr
+          latest
+
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: ./backend
+        file: ./backend/Dockerfile.prod
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        platforms: linux/amd64
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: Output image info
+      run: |
+        echo "✅ Backend image built and pushed successfully!"
+        echo "Registry: ${{ steps.login-ecr.outputs.registry }}"
+        echo "Repository: ${{ env.ECR_REPOSITORY }}"
+        echo "Tags: ${{ steps.meta.outputs.tags }}"
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') && github.event_name == 'push'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Deploy to ECS
+      run: |
+        echo "🚀 Deploying to ECS..."
+        
+        # Force new deployment
+        aws ecs update-service \
+          --cluster ${{ env.ECS_CLUSTER }} \
+          --service ${{ env.ECS_SERVICE }} \
+          --force-new-deployment \
+          --region ${{ env.AWS_REGION }}
+        
+        echo "✅ ECS service updated successfully!"
+        
+        # Wait for deployment to complete
+        echo "⏳ Waiting for deployment to complete..."
+        aws ecs wait services-stable \
+          --cluster ${{ env.ECS_CLUSTER }} \
+          --services ${{ env.ECS_SERVICE }} \
+          --region ${{ env.AWS_REGION }}
+        
+        echo "🎉 Deployment completed successfully!"
+
+    - name: Verify deployment
+      run: |
+        echo "🔍 Verifying deployment..."
+        
+        # Get service status
+        SERVICE_STATUS=$(aws ecs describe-services \
+          --cluster ${{ env.ECS_CLUSTER }} \
+          --services ${{ env.ECS_SERVICE }} \
+          --region ${{ env.AWS_REGION }} \
+          --query 'services[0].status' \
+          --output text)
+        
+        echo "Service status: $SERVICE_STATUS"
+        
+        if [ "$SERVICE_STATUS" = "ACTIVE" ]; then
+          echo "✅ Service is active and running"
+        else
+          echo "❌ Service is not in expected state"
+          exit 1
+        fi

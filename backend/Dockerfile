@@ -1,8 +1,8 @@
 # Build stage
-FROM golang:1.22 AS builder
+FROM golang:1.22-alpine AS builder
 
-# Install git and ca-certificates
-RUN apt-get update && apt-get install -y git ca-certificates && rm -rf /var/lib/apt/lists/*
+# Install git, ca-certificates, and build dependencies for CGO
+RUN apk add --no-cache git ca-certificates gcc musl-dev
 
 # Set working directory
 WORKDIR /app
@@ -16,28 +16,23 @@ RUN go mod download
 # Copy source code
 COPY . .
 
-# Build the application for the current platform
+# Build the application natively (no cross-compilation)
 # Enable CGO for Lightspark crypto dependencies
 RUN CGO_ENABLED=1 go build -o main .
 
 # Final stage
-FROM debian:bookworm-slim
+FROM alpine:latest
 
 # Install ca-certificates, postgresql-client, curl, and bash
-RUN apt-get update && apt-get install -y \
-    ca-certificates \
-    postgresql-client \
-    curl \
-    bash \
-    && rm -rf /var/lib/apt/lists/*
+RUN apk --no-cache add ca-certificates postgresql-client curl bash
 
 # Install dbmate
 RUN curl -fsSL -o /usr/local/bin/dbmate https://github.com/amacneil/dbmate/releases/latest/download/dbmate-linux-amd64 && \
     chmod +x /usr/local/bin/dbmate
 
 # Create non-root user
-RUN groupadd -g 1001 appgroup && \
-    useradd -u 1001 -g appgroup -s /bin/bash appuser
+RUN addgroup -g 1001 -S appgroup && \
+    adduser -u 1001 -S appuser -G appgroup
 
 # Set working directory
 WORKDIR /app
