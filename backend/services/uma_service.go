@@ -184,15 +184,15 @@ func (s *LightsparkUMAService) createHardcodedTestInvoice(amountSats int64, desc
 
 	// Create a hardcoded test bolt11 invoice
 	// This is a mock invoice for development purposes
-	bolt11 := fmt.Sprintf("lntb%d0n1p%spp5%s", 
-		amountSats, 
-		strings.Repeat("0", 10), 
+	bolt11 := fmt.Sprintf("lntb%d0n1p%spp5%s",
+		amountSats,
+		strings.Repeat("0", 10),
 		strings.Repeat("a", 50))
 
 	s.logger.Info("Created hardcoded test invoice",
 		"invoice_id", invoiceID,
 		"amount_sats", amountSats,
-		"bolt11", bolt11[:50] + "...")
+		"bolt11", bolt11[:50]+"...")
 
 	return &models.Invoice{
 		ID:          invoiceID,
@@ -208,11 +208,11 @@ func (s *LightsparkUMAService) createHardcodedTestInvoice(amountSats int64, desc
 func (s *LightsparkUMAService) createOneTimeInvoice(amountSats int64, description string) (*models.Invoice, error) {
 	// Check if we have proper Lightspark credentials
 	if s.clientID == "" || s.clientSecret == "" || s.nodeID == "" {
-		s.logger.Warn("Lightspark credentials not configured - using hardcoded test invoice", 
+		s.logger.Warn("Lightspark credentials not configured - using hardcoded test invoice",
 			"client_id_set", s.clientID != "",
 			"client_secret_set", s.clientSecret != "",
 			"node_id_set", s.nodeID != "")
-		
+
 		// Return a hardcoded test invoice for development/testing
 		return s.createHardcodedTestInvoice(amountSats, description)
 	}

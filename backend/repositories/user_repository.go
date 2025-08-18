@@ -21,7 +21,7 @@ func (r *userRepository) Create(user *models.User) error {
 		INSERT INTO users (email, name, created_at, updated_at) 
 		VALUES ($1, $2, $3, $4) 
 		RETURNING id, created_at, updated_at`
-	
+
 	now := time.Now()
 	return r.db.QueryRowx(query, user.Email, user.Name, now, now).StructScan(user)
 }
@@ -57,7 +57,7 @@ func (r *userRepository) Update(user *models.User) error {
 		UPDATE users 
 		SET email = $1, name = $2, updated_at = $3 
 		WHERE id = $4`
-	
+
 	user.UpdatedAt = time.Now()
 	_, err := r.db.Exec(query, user.Email, user.Name, user.UpdatedAt, user.ID)
 	return err

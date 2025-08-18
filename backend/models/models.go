@@ -26,7 +26,7 @@ type Event struct {
 	IsActive    bool      `json:"is_active" db:"is_active"`
 	CreatedAt   time.Time `json:"created_at" db:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at" db:"updated_at"`
-	
+
 	// Relationship to UMA Request invoice (can be nil if no invoice exists)
 	UMARequestInvoice *UMARequestInvoice `json:"uma_request_invoice,omitempty" db:"-"`
 }
@@ -75,11 +75,11 @@ type Payment struct {
 
 // Invoice represents a Lightning invoice
 type Invoice struct {
-	ID          string `json:"id"`
-	PaymentHash string `json:"payment_hash"`
-	Bolt11      string `json:"bolt11"`
-	AmountSats  int64  `json:"amount_sats"`
-	Status      string `json:"status"`
+	ID          string     `json:"id"`
+	PaymentHash string     `json:"payment_hash"`
+	Bolt11      string     `json:"bolt11"`
+	AmountSats  int64      `json:"amount_sats"`
+	Status      string     `json:"status"`
 	ExpiresAt   *time.Time `json:"expires_at"`
 }
 

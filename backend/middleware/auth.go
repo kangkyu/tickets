@@ -30,7 +30,7 @@ type Claims struct {
 // GenerateToken creates a new JWT token for a user
 func GenerateToken(user *models.User, secret string) (string, error) {
 	expirationTime := time.Now().Add(24 * time.Hour)
-	
+
 	claims := &Claims{
 		UserID: user.ID,
 		Email:  user.Email,
@@ -40,7 +40,7 @@ func GenerateToken(user *models.User, secret string) (string, error) {
 			NotBefore: jwt.NewNumericDate(time.Now()),
 		},
 	}
-	
+
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return token.SignedString([]byte(secret))
 }
@@ -48,22 +48,22 @@ func GenerateToken(user *models.User, secret string) (string, error) {
 // ValidateToken validates a JWT token and returns the claims
 func ValidateToken(tokenString, secret string) (*Claims, error) {
 	claims := &Claims{}
-	
+
 	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
 		return []byte(secret), nil
 	})
-	
+
 	if err != nil {
 		return nil, err
 	}
-	
+
 	if !token.Valid {
 		return nil, fmt.Errorf("invalid token")
 	}
-	
+
 	return claims, nil
 }
 
@@ -76,25 +76,25 @@ func AuthMiddleware(secret string) func(http.Handler) http.Handler {
 				http.Error(w, "Authorization header required", http.StatusUnauthorized)
 				return
 			}
-			
+
 			tokenString := strings.TrimPrefix(authHeader, "Bearer ")
 			if tokenString == authHeader {
 				http.Error(w, "Bearer token required", http.StatusUnauthorized)
 				return
 			}
-			
+
 			claims, err := ValidateToken(tokenString, secret)
 			if err != nil {
 				http.Error(w, "Invalid token", http.StatusUnauthorized)
 				return
 			}
-			
+
 			// Create a mock user object for context
 			user := &models.User{
 				ID:    claims.UserID,
 				Email: claims.Email,
 			}
-			
+
 			ctx := context.WithValue(r.Context(), UserContextKey, user)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
@@ -109,25 +109,25 @@ func RequireAuth(secret string, handler http.HandlerFunc) http.HandlerFunc {
 			http.Error(w, "Authorization header required", http.StatusUnauthorized)
 			return
 		}
-		
+
 		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
 		if tokenString == authHeader {
 			http.Error(w, "Bearer token required", http.StatusUnauthorized)
 			return
 		}
-		
+
 		claims, err := ValidateToken(tokenString, secret)
 		if err != nil {
 			http.Error(w, "Invalid token", http.StatusUnauthorized)
 			return
 		}
-		
+
 		// Create a mock user object for context
 		user := &models.User{
 			ID:    claims.UserID,
 			Email: claims.Email,
 		}
-		
+
 		ctx := context.WithValue(r.Context(), UserContextKey, user)
 		handler.ServeHTTP(w, r.WithContext(ctx))
 	}
