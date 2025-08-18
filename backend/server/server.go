@@ -122,7 +122,7 @@ func (s *Server) setupRoutes() {
 	admin.HandleFunc("/events", s.eventHandlers.HandleCreateEvent).Methods("POST", "OPTIONS")
 	admin.HandleFunc("/events/{id:[0-9]+}", s.eventHandlers.HandleUpdateEvent).Methods("PUT", "OPTIONS")
 	admin.HandleFunc("/events/{id:[0-9]+}", s.eventHandlers.HandleDeleteEvent).Methods("DELETE", "OPTIONS")
-	
+
 	// Admin UMA routes
 	admin.HandleFunc("/uma/requests", s.eventHandlers.HandleCreateUMARequest).Methods("POST", "OPTIONS")
 	admin.HandleFunc("/events/{id:[0-9]+}/uma-invoice", s.eventHandlers.HandleCreateEventUMAInvoice).Methods("POST", "OPTIONS")

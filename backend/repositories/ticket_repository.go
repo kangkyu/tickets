@@ -21,9 +21,9 @@ func (r *ticketRepository) Create(ticket *models.Ticket) error {
 		INSERT INTO tickets (event_id, user_id, ticket_code, payment_status, invoice_id, uma_address, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		RETURNING id, created_at, updated_at`
-	
+
 	now := time.Now()
-	return r.db.QueryRowx(query, 
+	return r.db.QueryRowx(query,
 		ticket.EventID, ticket.UserID, ticket.TicketCode, ticket.PaymentStatus,
 		ticket.InvoiceID, ticket.UMAAddress, now, now).StructScan(ticket)
 }
@@ -87,9 +87,9 @@ func (r *ticketRepository) Update(ticket *models.Ticket) error {
 		SET event_id = $1, user_id = $2, ticket_code = $3, payment_status = $4, 
 		    invoice_id = $5, uma_address = $6, paid_at = $7, updated_at = $8
 		WHERE id = $9`
-	
+
 	ticket.UpdatedAt = time.Now()
-	_, err := r.db.Exec(query, 
+	_, err := r.db.Exec(query,
 		ticket.EventID, ticket.UserID, ticket.TicketCode, ticket.PaymentStatus,
 		ticket.InvoiceID, ticket.UMAAddress, ticket.PaidAt, ticket.UpdatedAt, ticket.ID)
 	return err
@@ -100,13 +100,13 @@ func (r *ticketRepository) UpdatePaymentStatus(id int, status string) error {
 		UPDATE tickets 
 		SET payment_status = $1, updated_at = $2, paid_at = $3
 		WHERE id = $4`
-	
+
 	now := time.Now()
 	var paidAt *time.Time
 	if status == "paid" {
 		paidAt = &now
 	}
-	
+
 	_, err := r.db.Exec(query, status, now, paidAt, id)
 	return err
 }

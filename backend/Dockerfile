@@ -1,8 +1,13 @@
 # Build stage
-FROM golang:1.22-alpine AS builder
+FROM golang:1.22 AS builder
 
 # Install git, ca-certificates, and build dependencies for CGO
-RUN apk add --no-cache git ca-certificates gcc musl-dev
+RUN apt-get update && apt-get install -y \
+    git \
+    ca-certificates \
+    gcc \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
 WORKDIR /app
@@ -21,18 +26,22 @@ COPY . .
 RUN CGO_ENABLED=1 go build -o main .
 
 # Final stage
-FROM alpine:latest
+FROM debian:bookworm-slim
 
 # Install ca-certificates, postgresql-client, curl, and bash
-RUN apk --no-cache add ca-certificates postgresql-client curl bash
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    postgresql-client \
+    curl \
+    bash \
+    && rm -rf /var/lib/apt/lists/*
 
 # Install dbmate
 RUN curl -fsSL -o /usr/local/bin/dbmate https://github.com/amacneil/dbmate/releases/latest/download/dbmate-linux-amd64 && \
     chmod +x /usr/local/bin/dbmate
 
 # Create non-root user
-RUN addgroup -g 1001 -S appgroup && \
-    adduser -u 1001 -S appuser -G appgroup
+RUN groupadd -g 1001 appgroup && useradd -u 1001 -g appgroup appuser
 
 # Set working directory
 WORKDIR /app

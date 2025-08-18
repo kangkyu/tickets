@@ -21,9 +21,9 @@ func (r *paymentRepository) Create(payment *models.Payment) error {
 		INSERT INTO payments (ticket_id, invoice_id, amount_sats, status, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6)
 		RETURNING id, created_at, updated_at`
-	
+
 	now := time.Now()
-	return r.db.QueryRowx(query, 
+	return r.db.QueryRowx(query,
 		payment.TicketID, payment.InvoiceID, payment.Amount, payment.Status, now, now).StructScan(payment)
 }
 
@@ -71,9 +71,9 @@ func (r *paymentRepository) Update(payment *models.Payment) error {
 		UPDATE payments 
 		SET ticket_id = $1, invoice_id = $2, amount_sats = $3, status = $4, paid_at = $5, updated_at = $6
 		WHERE id = $7`
-	
+
 	payment.UpdatedAt = time.Now()
-	_, err := r.db.Exec(query, 
+	_, err := r.db.Exec(query,
 		payment.TicketID, payment.InvoiceID, payment.Amount, payment.Status,
 		payment.PaidAt, payment.UpdatedAt, payment.ID)
 	return err
@@ -84,13 +84,13 @@ func (r *paymentRepository) UpdateStatus(id int, status string) error {
 		UPDATE payments 
 		SET status = $1, updated_at = $2, paid_at = $3
 		WHERE id = $4`
-	
+
 	now := time.Now()
 	var paidAt *time.Time
 	if status == "paid" {
 		paidAt = &now
 	}
-	
+
 	_, err := r.db.Exec(query, status, now, paidAt, id)
 	return err
 }

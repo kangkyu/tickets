@@ -135,12 +135,12 @@ func RunMigrations(db *sqlx.DB, logger *slog.Logger) error {
 
 	for _, migration := range migrations {
 		logger.Info("Running migration", "table", migration.name)
-		
+
 		if _, err := db.Exec(migration.sql); err != nil {
 			logger.Error("Migration failed", "table", migration.name, "error", err)
 			return fmt.Errorf("migration %s failed: %w", migration.name, err)
 		}
-		
+
 		logger.Info("Migration completed", "table", migration.name)
 	}
 
@@ -169,7 +169,7 @@ func SeedDatabase(db *sqlx.DB, logger *slog.Logger) error {
 		INSERT INTO users (email, name, created_at, updated_at) 
 		VALUES ($1, $2, $3, $4) 
 		RETURNING id`
-	
+
 	var userID int
 	err = db.QueryRow(userQuery, "admin@example.com", "Admin User", time.Now(), time.Now()).Scan(&userID)
 	if err != nil {
@@ -181,23 +181,23 @@ func SeedDatabase(db *sqlx.DB, logger *slog.Logger) error {
 		INSERT INTO events (title, description, start_time, end_time, capacity, price_sats, stream_url, is_active, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 		RETURNING id`
-	
+
 	var eventID int
 	startTime := time.Now().Add(24 * time.Hour) // Tomorrow
 	endTime := startTime.Add(2 * time.Hour)
-	
-	err = db.QueryRow(eventQuery, 
-		"Sample Virtual Event", 
-		"This is a sample virtual event for testing purposes", 
-		startTime, 
-		endTime, 
-		100, 
+
+	err = db.QueryRow(eventQuery,
+		"Sample Virtual Event",
+		"This is a sample virtual event for testing purposes",
+		startTime,
+		endTime,
+		100,
 		1000, // 1000 sats
-		"https://stream.example.com/event1", 
-		true, 
-		time.Now(), 
+		"https://stream.example.com/event1",
+		true,
+		time.Now(),
 		time.Now()).Scan(&eventID)
-	
+
 	if err != nil {
 		return fmt.Errorf("failed to create sample event: %w", err)
 	}

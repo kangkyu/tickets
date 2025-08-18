@@ -3,12 +3,13 @@ package apphandlers
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
 
 	"github.com/gorilla/mux"
-	"log/slog"
+
 	"tickets-by-uma/middleware"
 	"tickets-by-uma/models"
 	"tickets-by-uma/repositories"
@@ -80,22 +81,22 @@ func (h *TicketHandlers) HandlePurchaseTicket(w http.ResponseWriter, r *http.Req
 	// Free events (price = 0) don't need UMA invoices since tickets are free
 	// Paid events (price > 0) require UMA invoices for payment processing
 	if event.PriceSats > 0 && event.UMARequestInvoice == nil {
-		h.logger.Error("Paid event missing UMA Request invoice", 
-			"event_id", req.EventID, 
+		h.logger.Error("Paid event missing UMA Request invoice",
+			"event_id", req.EventID,
 			"price_sats", event.PriceSats)
 		middleware.WriteError(w, http.StatusServiceUnavailable, "Event payment system not configured")
 		return
 	}
-	
+
 	if event.PriceSats == 0 {
-		h.logger.Info("Free event - no payment required", 
-			"event_id", req.EventID, 
+		h.logger.Info("Free event - no payment required",
+			"event_id", req.EventID,
 			"price_sats", event.PriceSats)
 		// For free events, we can proceed without UMA invoice
 		// The ticket will be created with payment_status = 'free'
 	} else if event.UMARequestInvoice == nil {
-		h.logger.Error("Paid event missing UMA Request invoice", 
-			"event_id", req.EventID, 
+		h.logger.Error("Paid event missing UMA Request invoice",
+			"event_id", req.EventID,
 			"price_sats", event.PriceSats)
 		middleware.WriteError(w, http.StatusServiceUnavailable, "Event payment system not configured")
 		return
@@ -127,10 +128,10 @@ func (h *TicketHandlers) HandlePurchaseTicket(w http.ResponseWriter, r *http.Req
 
 	if event.PriceSats == 0 {
 		// Free event - create ticket with 'free' payment status
-		h.logger.Info("Creating free ticket for free event", 
-			"event_id", req.EventID, 
+		h.logger.Info("Creating free ticket for free event",
+			"event_id", req.EventID,
 			"price_sats", event.PriceSats)
-		
+
 		ticket = &models.Ticket{
 			EventID:       req.EventID,
 			UserID:        req.UserID,
@@ -139,16 +140,16 @@ func (h *TicketHandlers) HandlePurchaseTicket(w http.ResponseWriter, r *http.Req
 			InvoiceID:     "",     // No invoice for free tickets
 			UMAAddress:    req.UMAAddress,
 		}
-		
+
 		if err := h.ticketRepo.Create(ticket); err != nil {
 			h.logger.Error("Failed to create free ticket", "error", err)
 			middleware.WriteError(w, http.StatusInternalServerError, "Failed to create ticket")
 			return
 		}
-		
+
 		// No payment record needed for free tickets
 		payment = nil
-		
+
 	} else {
 		// Paid event - validate UMA address and use pre-created invoice
 		if err := h.umaService.ValidateUMAAddress(req.UMAAddress); err != nil {
@@ -159,11 +160,11 @@ func (h *TicketHandlers) HandlePurchaseTicket(w http.ResponseWriter, r *http.Req
 		// Use the pre-created UMA Request invoice from the event
 		// This follows UMA protocol where businesses create invoices for products/services
 		invoice := &models.Invoice{
-			ID:          event.UMARequestInvoice.InvoiceID,
-			Bolt11:      event.UMARequestInvoice.Bolt11,
-			AmountSats:  event.UMARequestInvoice.AmountSats,
-			Status:      "pending",
-			ExpiresAt:   nil, // Will be set when payment is processed
+			ID:         event.UMARequestInvoice.InvoiceID,
+			Bolt11:     event.UMARequestInvoice.Bolt11,
+			AmountSats: event.UMARequestInvoice.AmountSats,
+			Status:     "pending",
+			ExpiresAt:  nil, // Will be set when payment is processed
 		}
 
 		// Create ticket record for paid event
@@ -218,11 +219,11 @@ func (h *TicketHandlers) HandlePurchaseTicket(w http.ResponseWriter, r *http.Req
 	// Add UMA Request invoice information only for paid events
 	if event.PriceSats > 0 && event.UMARequestInvoice != nil {
 		response["uma_request"] = map[string]interface{}{
-			"invoice_id":    event.UMARequestInvoice.InvoiceID,
-			"bolt11":        event.UMARequestInvoice.Bolt11,
-			"amount_sats":   event.UMARequestInvoice.AmountSats,
-			"payment_hash":  event.UMARequestInvoice.PaymentHash,
-			"expires_at":    event.UMARequestInvoice.ExpiresAt,
+			"invoice_id":   event.UMARequestInvoice.InvoiceID,
+			"bolt11":       event.UMARequestInvoice.Bolt11,
+			"amount_sats":  event.UMARequestInvoice.AmountSats,
+			"payment_hash": event.UMARequestInvoice.PaymentHash,
+			"expires_at":   event.UMARequestInvoice.ExpiresAt,
 		}
 	}
 
@@ -432,12 +433,12 @@ func (h *TicketHandlers) HandleGetUserTickets(w http.ResponseWriter, r *http.Req
 			"created_at":     ticket.CreatedAt,
 			"updated_at":     ticket.UpdatedAt,
 			"event": map[string]interface{}{
-				"id":          event.ID,
-				"title":       event.Title,
-				"start_time":  event.StartTime,
-				"end_time":    event.EndTime,
-				"stream_url":  event.StreamURL,
-				"price_sats":  event.PriceSats,
+				"id":         event.ID,
+				"title":      event.Title,
+				"start_time": event.StartTime,
+				"end_time":   event.EndTime,
+				"stream_url": event.StreamURL,
+				"price_sats": event.PriceSats,
 			},
 		}
 
