@@ -26,6 +26,25 @@ type Event struct {
 	IsActive    bool      `json:"is_active" db:"is_active"`
 	CreatedAt   time.Time `json:"created_at" db:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at" db:"updated_at"`
+	
+	// Relationship to UMA Request invoice (can be nil if no invoice exists)
+	UMARequestInvoice *UMARequestInvoice `json:"uma_request_invoice,omitempty" db:"-"`
+}
+
+// UMARequestInvoice represents a UMA Request invoice for an event
+type UMARequestInvoice struct {
+	ID          int        `json:"id" db:"id"`
+	EventID     int        `json:"event_id" db:"event_id"`
+	InvoiceID   string     `json:"invoice_id" db:"invoice_id"`
+	PaymentHash string     `json:"payment_hash" db:"payment_hash"`
+	Bolt11      string     `json:"bolt11" db:"bolt11"`
+	AmountSats  int64      `json:"amount_sats" db:"amount_sats"`
+	Status      string     `json:"status" db:"status"`
+	UMAAddress  string     `json:"uma_address" db:"uma_address"`
+	Description string     `json:"description" db:"description"`
+	ExpiresAt   *time.Time `json:"expires_at" db:"expires_at"`
+	CreatedAt   time.Time  `json:"created_at" db:"created_at"`
+	UpdatedAt   time.Time  `json:"updated_at" db:"updated_at"`
 }
 
 // Ticket represents a ticket for an event

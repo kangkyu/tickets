@@ -24,6 +24,7 @@ type Server struct {
 	eventRepo       repositories.EventRepository
 	ticketRepo      repositories.TicketRepository
 	paymentRepo     repositories.PaymentRepository
+	umaRepo         repositories.UMARequestInvoiceRepository
 	umaService      services.UMAService
 	router          *mux.Router
 	userHandlers    *apphandlers.UserHandlers
@@ -45,6 +46,7 @@ func NewServer(db *sqlx.DB, logger *slog.Logger, config *config.Config) *Server 
 	s.eventRepo = repositories.NewEventRepository(db)
 	s.ticketRepo = repositories.NewTicketRepository(db)
 	s.paymentRepo = repositories.NewPaymentRepository(db)
+	s.umaRepo = repositories.NewUMARequestInvoiceRepository(db)
 
 	// Initialize UMA service
 	s.umaService = services.NewLightsparkUMAService(
@@ -120,6 +122,10 @@ func (s *Server) setupRoutes() {
 	admin.HandleFunc("/events", s.eventHandlers.HandleCreateEvent).Methods("POST", "OPTIONS")
 	admin.HandleFunc("/events/{id:[0-9]+}", s.eventHandlers.HandleUpdateEvent).Methods("PUT", "OPTIONS")
 	admin.HandleFunc("/events/{id:[0-9]+}", s.eventHandlers.HandleDeleteEvent).Methods("DELETE", "OPTIONS")
+	
+	// Admin UMA routes
+	admin.HandleFunc("/uma/requests", s.eventHandlers.HandleCreateUMARequest).Methods("POST", "OPTIONS")
+	admin.HandleFunc("/events/{id:[0-9]+}/uma-invoice", s.eventHandlers.HandleCreateEventUMAInvoice).Methods("POST", "OPTIONS")
 
 	// Admin payment routes
 	admin.HandleFunc("/payments/pending", s.paymentHandlers.HandleGetPendingPayments).Methods("GET", "OPTIONS")
@@ -129,7 +135,7 @@ func (s *Server) setupRoutes() {
 // Initialize handlers
 func (s *Server) initializeHandlers() {
 	s.userHandlers = apphandlers.NewUserHandlers(s.userRepo, s.logger, s.config.JWTSecret)
-	s.eventHandlers = apphandlers.NewEventHandlers(s.eventRepo, s.paymentRepo, s.umaService, s.logger)
+	s.eventHandlers = apphandlers.NewEventHandlers(s.eventRepo, s.paymentRepo, s.umaService, s.umaRepo, s.logger, s.config)
 	s.ticketHandlers = apphandlers.NewTicketHandlers(s.ticketRepo, s.eventRepo, s.paymentRepo, s.umaService, s.logger)
 	s.paymentHandlers = apphandlers.NewPaymentHandlers(s.paymentRepo, s.ticketRepo, s.umaService, s.logger)
 }

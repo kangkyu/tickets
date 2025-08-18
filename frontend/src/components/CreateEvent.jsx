@@ -86,7 +86,7 @@ const CreateEvent = () => {
       // Redirect to admin dashboard with success message
       navigate('/admin', { 
         state: { 
-          message: 'Event created successfully! Users can now purchase tickets using UMA invoices.' 
+          message: 'Event created successfully! A UMA Request invoice has been generated for the event tickets, following the UMA protocol where businesses create invoices for products/services.' 
         } 
       })
 
@@ -261,26 +261,22 @@ const CreateEvent = () => {
               </p>
             </div>
 
-            {/* UMA Invoice Info */}
-            <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
-              <div className="flex">
-                <div className="flex-shrink-0">
-                  <svg className="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                  </svg>
-                </div>
-                <div className="ml-3">
-                  <h3 className="text-sm font-medium text-blue-800">
-                    UMA Invoice Integration
-                  </h3>
-                  <div className="mt-2 text-sm text-blue-700">
-                    <p>
-                      When users purchase tickets, the system will automatically generate UMA invoices 
-                      for Lightning Network payments. No pre-creation of invoices is needed.
-                    </p>
-                  </div>
-                </div>
-              </div>
+            {/* UMA Invoice Integration */}
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+              <h3 className="text-lg font-semibold text-blue-800 mb-2">
+                UMA Request Invoice Integration
+              </h3>
+              <p className="text-blue-700 text-sm mb-3">
+                <strong>Paid Events (Price &gt; 0):</strong> A UMA Request invoice will be automatically created for ticket sales. 
+                This follows the UMA protocol where businesses create one-time invoices for products/services.
+              </p>
+              <p className="text-blue-700 text-sm mb-3">
+                <strong>Free Events (Price = 0):</strong> No UMA Request invoice is needed since tickets are free. 
+                Users can RSVP by getting free tickets without payment.
+              </p>
+              <p className="text-blue-700 text-sm">
+                <em>Note: UMA Request invoices are only created for events that require payment. Free events work without them.</em>
+              </p>
             </div>
 
             {/* Submit Button */}

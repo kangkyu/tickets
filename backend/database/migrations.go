@@ -70,6 +70,52 @@ CREATE INDEX IF NOT EXISTS idx_events_start_time ON events(start_time);
 CREATE INDEX IF NOT EXISTS idx_events_is_active ON events(is_active);
 `
 
+// Add UMA Request invoice fields to events table
+const addUMAFieldsToEvents = `
+DO $$
+BEGIN
+    -- Add uma_request_invoice_id column if it doesn't exist
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                   WHERE table_name = 'events' AND column_name = 'uma_request_invoice_id') THEN
+        ALTER TABLE events ADD COLUMN uma_request_invoice_id VARCHAR(255);
+    END IF;
+    
+    -- Add uma_request_bolt11 column if it doesn't exist
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                   WHERE table_name = 'events' AND column_name = 'uma_request_bolt11') THEN
+        ALTER TABLE events ADD COLUMN uma_request_bolt11 TEXT;
+    END IF;
+    
+    -- Add uma_request_address column if it doesn't exist
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                   WHERE table_name = 'events' AND column_name = 'uma_request_address') THEN
+        ALTER TABLE events ADD COLUMN uma_request_address VARCHAR(255);
+    END IF;
+END $$;
+`
+
+// Create UMA Request invoices table
+const createUMARequestInvoicesTable = `
+CREATE TABLE IF NOT EXISTS uma_request_invoices (
+    id SERIAL PRIMARY KEY,
+    event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+    invoice_id VARCHAR(255) UNIQUE NOT NULL,
+    payment_hash VARCHAR(255),
+    bolt11 TEXT NOT NULL,
+    amount_sats BIGINT NOT NULL CHECK (amount_sats > 0),
+    status VARCHAR(50) DEFAULT 'pending',
+    uma_address VARCHAR(255) NOT NULL,
+    description TEXT NOT NULL,
+    expires_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Create index for better performance
+CREATE INDEX IF NOT EXISTS idx_uma_invoices_event_id ON uma_request_invoices(event_id);
+CREATE INDEX IF NOT EXISTS idx_uma_invoices_status ON uma_request_invoices(status);
+`
+
 // RunMigrations executes all database migrations
 func RunMigrations(db *sqlx.DB, logger *slog.Logger) error {
 	logger.Info("Running database migrations...")
@@ -83,6 +129,8 @@ func RunMigrations(db *sqlx.DB, logger *slog.Logger) error {
 		{"tickets", createTicketsTable},
 		{"payments", createPaymentsTable},
 		{"indexes", createIndexes},
+		{"uma_fields", addUMAFieldsToEvents},
+		{"uma_invoices", createUMARequestInvoicesTable},
 	}
 
 	for _, migration := range migrations {

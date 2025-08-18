@@ -271,6 +271,7 @@ func (h *PaymentHandlers) HandleRetryPayment(w http.ResponseWriter, r *http.Requ
 		ticket.UMAAddress, 
 		payment.Amount, 
 		fmt.Sprintf("Retry payment for ticket %s", ticket.TicketCode),
+		true, // isAdmin = true for admin endpoints
 	)
 	if err != nil {
 		h.logger.Error("Failed to create retry invoice", "error", err)

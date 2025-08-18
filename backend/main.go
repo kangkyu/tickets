@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -11,9 +10,9 @@ import (
 
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
+	"log/slog"
 
 	"tickets-by-uma/config"
-	"tickets-by-uma/database"
 	"tickets-by-uma/server"
 )
 
@@ -51,17 +50,8 @@ func main() {
 	}
 	logger.Info("Database connection established")
 
-	// Run migrations
-	if err := database.RunMigrations(db, logger); err != nil {
-		logger.Error("Failed to run migrations", "error", err)
-		os.Exit(1)
-	}
-
-	// Seed database with initial data
-	if err := database.SeedDatabase(db, logger); err != nil {
-		logger.Error("Failed to seed database", "error", err)
-		os.Exit(1)
-	}
+	// Note: Database migrations are now handled by dbmate
+	// Run 'dbmate up' to apply migrations before starting the server
 
 	// Create server
 	srv := server.NewServer(db, logger, cfg)

@@ -14,6 +14,7 @@ type Config struct {
 	LightsparkNodePassword string
 	JWTSecret              string
 	AdminEmails            []string
+	Domain                 string
 }
 
 func LoadConfig() *Config {
@@ -26,6 +27,7 @@ func LoadConfig() *Config {
 		LightsparkNodePassword: getEnv("LIGHTSPARK_TEST_NODE_PASSWORD", ""),
 		JWTSecret:              getEnv("JWT_SECRET", "your-secret-key-change-in-production"),
 		AdminEmails:            strings.Split(getEnv("ADMIN_EMAILS", "admin@example.com"), ","),
+		Domain:                 getEnv("DOMAIN", "localhost"),
 	}
 }
 

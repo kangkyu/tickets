@@ -16,7 +16,8 @@ import (
 
 // UMAService defines the interface for UMA payment operations
 type UMAService interface {
-	CreateUMARequest(umaAddress string, amountSats int64, description string) (*models.Invoice, error)
+	CreateUMARequest(umaAddress string, amountSats int64, description string, isAdmin bool) (*models.Invoice, error)
+	CreateTicketInvoice(umaAddress string, amountSats int64, description string) (*models.Invoice, error)
 	CheckPaymentStatus(invoiceID string) (*models.PaymentStatus, error)
 	ValidateUMAAddress(address string) error
 	HandleUMACallback(paymentHash string, status string) error
@@ -88,19 +89,43 @@ func (s *LightsparkUMAService) ValidateUMAAddress(address string) error {
 }
 
 // CreateUMARequest creates a one-time invoice using UMA Request for a product or service
-func (s *LightsparkUMAService) CreateUMARequest(umaAddress string, amountSats int64, description string) (*models.Invoice, error) {
+// This method is restricted to admin users only because it represents the business side of UMA Request protocol
+// In UMA protocol: "A business or individual creates a one-time invoice using UMA Request for a product or service"
+func (s *LightsparkUMAService) CreateUMARequest(umaAddress string, amountSats int64, description string, isAdmin bool) (*models.Invoice, error) {
+	// Admin-only access check - only business operators (admins) can create UMA Request invoices
+	if !isAdmin {
+		return nil, errors.New("CreateUMARequest is restricted to admin users only - represents business side of UMA Request protocol")
+	}
+
 	// Validate UMA address
 	if err := s.ValidateUMAAddress(umaAddress); err != nil {
 		return nil, fmt.Errorf("invalid UMA address: %w", err)
 	}
 
-	s.logger.Info("Creating UMA Request",
+	s.logger.Info("Creating UMA Request (business operation)",
 		"uma_address", umaAddress,
 		"amount_sats", amountSats,
 		"description", description)
 
 	// Create one-time Lightning invoice using UMA Request pattern
 	return s.createOneTimeInvoice(amountSats, fmt.Sprintf("UMA Request - %s", description))
+}
+
+// CreateTicketInvoice creates a one-time invoice for ticket purchases (public access)
+// This is for end users purchasing tickets, separate from business UMA Request creation
+func (s *LightsparkUMAService) CreateTicketInvoice(umaAddress string, amountSats int64, description string) (*models.Invoice, error) {
+	// Validate UMA address
+	if err := s.ValidateUMAAddress(umaAddress); err != nil {
+		return nil, fmt.Errorf("invalid UMA address: %w", err)
+	}
+
+	s.logger.Info("Creating ticket invoice",
+		"uma_address", umaAddress,
+		"amount_sats", amountSats,
+		"description", description)
+
+	// Create one-time Lightning invoice for ticket purchase
+	return s.createOneTimeInvoice(amountSats, fmt.Sprintf("Ticket Purchase - %s", description))
 }
 
 // CheckPaymentStatus checks the status of a payment

@@ -17,12 +17,20 @@ type UserRepository interface {
 type EventRepository interface {
 	Create(event *models.Event) error
 	GetByID(id int) (*models.Event, error)
+	GetByIDWithUMAInvoice(id int) (*models.Event, error)
 	GetAll(limit, offset int) ([]models.Event, error)
 	GetActive(limit, offset int) ([]models.Event, error)
 	Update(event *models.Event) error
 	Delete(id int) error
 	GetAvailableTicketCount(eventID int) (int, error)
 	UpdateCapacity(eventID, newCapacity int) error
+}
+
+type UMARequestInvoiceRepository interface {
+	Create(invoice *models.UMARequestInvoice) error
+	GetByEventID(eventID int) (*models.UMARequestInvoice, error)
+	Update(invoice *models.UMARequestInvoice) error
+	Delete(id int) error
 }
 
 // TicketRepository defines operations for ticket data

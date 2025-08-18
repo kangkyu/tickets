@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -60,7 +59,7 @@ func (h *TicketHandlers) HandlePurchaseTicket(w http.ResponseWriter, r *http.Req
 		"uma_address", req.UMAAddress)
 
 	// Check if event exists and is active
-	event, err := h.eventRepo.GetByID(req.EventID)
+	event, err := h.eventRepo.GetByIDWithUMAInvoice(req.EventID)
 	if err != nil {
 		h.logger.Error("Failed to fetch event", "event_id", req.EventID, "error", err)
 		middleware.WriteError(w, http.StatusInternalServerError, "Failed to fetch event")
@@ -77,6 +76,31 @@ func (h *TicketHandlers) HandlePurchaseTicket(w http.ResponseWriter, r *http.Req
 		return
 	}
 
+	// Check if event has a UMA Request invoice (business-created)
+	// Free events (price = 0) don't need UMA invoices since tickets are free
+	// Paid events (price > 0) require UMA invoices for payment processing
+	if event.PriceSats > 0 && event.UMARequestInvoice == nil {
+		h.logger.Error("Paid event missing UMA Request invoice", 
+			"event_id", req.EventID, 
+			"price_sats", event.PriceSats)
+		middleware.WriteError(w, http.StatusServiceUnavailable, "Event payment system not configured")
+		return
+	}
+	
+	if event.PriceSats == 0 {
+		h.logger.Info("Free event - no payment required", 
+			"event_id", req.EventID, 
+			"price_sats", event.PriceSats)
+		// For free events, we can proceed without UMA invoice
+		// The ticket will be created with payment_status = 'free'
+	} else if event.UMARequestInvoice == nil {
+		h.logger.Error("Paid event missing UMA Request invoice", 
+			"event_id", req.EventID, 
+			"price_sats", event.PriceSats)
+		middleware.WriteError(w, http.StatusServiceUnavailable, "Event payment system not configured")
+		return
+	}
+
 	// Check if event has available capacity
 	availableTickets, err := h.eventRepo.GetAvailableTicketCount(req.EventID)
 	if err != nil {
@@ -90,32 +114,6 @@ func (h *TicketHandlers) HandlePurchaseTicket(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	// Validate UMA address
-	if err := h.umaService.ValidateUMAAddress(req.UMAAddress); err != nil {
-		middleware.WriteError(w, http.StatusBadRequest, fmt.Sprintf("Invalid UMA address: %v", err))
-		return
-	}
-
-	// Create UMA Request - one-time invoice for this specific ticket purchase
-	invoice, err := h.umaService.CreateUMARequest(
-		req.UMAAddress,
-		event.PriceSats,
-		fmt.Sprintf("Ticket for %s", event.Title),
-	)
-	if err != nil {
-		h.logger.Error("Failed to create UMA request", "error", err)
-		
-		// Check if it's a configuration error vs a real server error
-		if strings.Contains(err.Error(), "payment service temporarily unavailable") {
-			middleware.WriteError(w, http.StatusServiceUnavailable, err.Error())
-		} else if strings.Contains(err.Error(), "not configured") {
-			middleware.WriteError(w, http.StatusServiceUnavailable, err.Error())
-		} else {
-			middleware.WriteError(w, http.StatusBadRequest, err.Error())
-		}
-		return
-	}
-
 	// Generate unique ticket code
 	ticketCode, err := middleware.GenerateTicketCode()
 	if err != nil {
@@ -124,54 +122,92 @@ func (h *TicketHandlers) HandlePurchaseTicket(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	// Create ticket record
-	ticket := &models.Ticket{
-		EventID:       req.EventID,
-		UserID:        req.UserID,
-		TicketCode:    ticketCode,
-		PaymentStatus: "pending",
-		InvoiceID:     invoice.ID,
-		UMAAddress:    req.UMAAddress,
+	var ticket *models.Ticket
+	var payment *models.Payment
+
+	if event.PriceSats == 0 {
+		// Free event - create ticket with 'free' payment status
+		h.logger.Info("Creating free ticket for free event", 
+			"event_id", req.EventID, 
+			"price_sats", event.PriceSats)
+		
+		ticket = &models.Ticket{
+			EventID:       req.EventID,
+			UserID:        req.UserID,
+			TicketCode:    ticketCode,
+			PaymentStatus: "free", // Free tickets don't need payment
+			InvoiceID:     "",     // No invoice for free tickets
+			UMAAddress:    req.UMAAddress,
+		}
+		
+		if err := h.ticketRepo.Create(ticket); err != nil {
+			h.logger.Error("Failed to create free ticket", "error", err)
+			middleware.WriteError(w, http.StatusInternalServerError, "Failed to create ticket")
+			return
+		}
+		
+		// No payment record needed for free tickets
+		payment = nil
+		
+	} else {
+		// Paid event - validate UMA address and use pre-created invoice
+		if err := h.umaService.ValidateUMAAddress(req.UMAAddress); err != nil {
+			middleware.WriteError(w, http.StatusBadRequest, fmt.Sprintf("Invalid UMA address: %v", err))
+			return
+		}
+
+		// Use the pre-created UMA Request invoice from the event
+		// This follows UMA protocol where businesses create invoices for products/services
+		invoice := &models.Invoice{
+			ID:          event.UMARequestInvoice.InvoiceID,
+			Bolt11:      event.UMARequestInvoice.Bolt11,
+			AmountSats:  event.UMARequestInvoice.AmountSats,
+			Status:      "pending",
+			ExpiresAt:   nil, // Will be set when payment is processed
+		}
+
+		// Create ticket record for paid event
+		ticket = &models.Ticket{
+			EventID:       req.EventID,
+			UserID:        req.UserID,
+			TicketCode:    ticketCode,
+			PaymentStatus: "pending",
+			InvoiceID:     invoice.ID,
+			UMAAddress:    req.UMAAddress,
+		}
+
+		if err := h.ticketRepo.Create(ticket); err != nil {
+			h.logger.Error("Failed to create paid ticket", "error", err)
+			middleware.WriteError(w, http.StatusInternalServerError, "Failed to create ticket")
+			return
+		}
+
+		// Create payment record for this UMA request
+		payment = &models.Payment{
+			TicketID:  ticket.ID,
+			InvoiceID: invoice.ID,
+			Amount:    event.UMARequestInvoice.AmountSats,
+			Status:    "pending",
+		}
+
+		if err := h.paymentRepo.Create(payment); err != nil {
+			h.logger.Error("Failed to create payment record", "error", err)
+			middleware.WriteError(w, http.StatusInternalServerError, "Failed to create payment record")
+			return
+		}
+
+		h.logger.Info("Paid ticket purchase using UMA Request invoice",
+			"ticket_id", ticket.ID,
+			"invoice_id", invoice.ID,
+			"uma_address", req.UMAAddress)
 	}
 
-	if err := h.ticketRepo.Create(ticket); err != nil {
-		h.logger.Error("Failed to create ticket", "error", err)
-		middleware.WriteError(w, http.StatusInternalServerError, "Failed to create ticket")
-		return
-	}
-
-	// Create payment record for this UMA request
-	payment := &models.Payment{
-		TicketID:  ticket.ID,
-		InvoiceID: invoice.ID,
-		Amount:    event.PriceSats,
-		Status:    "pending",
-	}
-
-	if err := h.paymentRepo.Create(payment); err != nil {
-		h.logger.Error("Failed to create payment record", "error", err)
-		middleware.WriteError(w, http.StatusInternalServerError, "Failed to create payment record")
-		return
-	}
-
-	h.logger.Info("UMA Request created successfully",
-		"ticket_id", ticket.ID,
-		"invoice_id", invoice.ID,
-		"uma_address", req.UMAAddress)
-
-	// Return ticket and UMA payment request information
+	// Return ticket and event information
 	response := map[string]interface{}{
 		"ticket": map[string]interface{}{
 			"id":             ticket.ID,
 			"ticket_code":    ticket.TicketCode,
 			"payment_status": ticket.PaymentStatus,
-		},
-		"uma_request": map[string]interface{}{
-			"invoice_id":    invoice.ID,
-			"bolt11":        invoice.Bolt11,
-			"amount_sats":   invoice.AmountSats,
-			"payment_hash":  invoice.PaymentHash,
-			"expires_at":    invoice.ExpiresAt,
 		},
 		"event": map[string]interface{}{
 			"title":      event.Title,
@@ -179,8 +215,26 @@ func (h *TicketHandlers) HandlePurchaseTicket(w http.ResponseWriter, r *http.Req
 		},
 	}
 
+	// Add UMA Request invoice information only for paid events
+	if event.PriceSats > 0 && event.UMARequestInvoice != nil {
+		response["uma_request"] = map[string]interface{}{
+			"invoice_id":    event.UMARequestInvoice.InvoiceID,
+			"bolt11":        event.UMARequestInvoice.Bolt11,
+			"amount_sats":   event.UMARequestInvoice.AmountSats,
+			"payment_hash":  event.UMARequestInvoice.PaymentHash,
+			"expires_at":    event.UMARequestInvoice.ExpiresAt,
+		}
+	}
+
+	var message string
+	if event.PriceSats == 0 {
+		message = "Free ticket created successfully"
+	} else {
+		message = "Ticket purchase initiated successfully using UMA Request invoice"
+	}
+
 	middleware.WriteJSON(w, http.StatusCreated, models.SuccessResponse{
-		Message: "Ticket purchase initiated successfully",
+		Message: message,
 		Data:    response,
 	})
 }
