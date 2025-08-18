@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/jmoiron/sqlx"
 
@@ -141,24 +142,15 @@ func (s *Server) initializeHandlers() {
 
 // CORS middleware
 func (s *Server) corsMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Set CORS headers for all responses
-		origin := r.Header.Get("Origin")
-		if origin == "http://localhost:3000" || origin == "https://fanmeeting.org" {
-			w.Header().Set("Access-Control-Allow-Origin", origin)
-		}
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, PATCH")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept, Origin")
-		w.Header().Set("Access-Control-Allow-Credentials", "true")
-		
-		// Handle preflight OPTIONS request
-		if r.Method == "OPTIONS" {
-			w.WriteHeader(http.StatusOK)
-			return
-		}
-		
-		next.ServeHTTP(w, r)
-	})
+	return handlers.CORS(
+		handlers.AllowedOrigins([]string{
+			"http://localhost:3000",  // Local development
+			"https://fanmeeting.org", // Production domain
+		}),
+		handlers.AllowedMethods([]string{"GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"}),
+		handlers.AllowedHeaders([]string{"Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin"}),
+		handlers.AllowCredentials(),
+	)(next)
 }
 
 // Logging middleware
