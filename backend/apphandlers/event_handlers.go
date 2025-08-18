@@ -19,6 +19,7 @@ import (
 type EventHandlers struct {
 	eventRepo   repositories.EventRepository
 	paymentRepo repositories.PaymentRepository
+	ticketRepo  repositories.TicketRepository
 	umaService  services.UMAService
 	umaRepo     repositories.UMARequestInvoiceRepository
 	logger      *slog.Logger
@@ -28,6 +29,7 @@ type EventHandlers struct {
 func NewEventHandlers(
 	eventRepo repositories.EventRepository,
 	paymentRepo repositories.PaymentRepository,
+	ticketRepo repositories.TicketRepository,
 	umaService services.UMAService,
 	umaRepo repositories.UMARequestInvoiceRepository,
 	logger *slog.Logger,
@@ -36,6 +38,7 @@ func NewEventHandlers(
 	return &EventHandlers{
 		eventRepo:   eventRepo,
 		paymentRepo: paymentRepo,
+		ticketRepo:  ticketRepo,
 		umaService:  umaService,
 		umaRepo:     umaRepo,
 		logger:      logger,
@@ -70,9 +73,60 @@ func (h *EventHandlers) HandleGetEvents(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	
+	// Get current user from context (if authenticated)
+	var currentUser *models.User
+	if user := middleware.GetUserFromContext(r.Context()); user != nil {
+		currentUser = user
+	}
+	
+	// Enrich events with user ticket status
+	enrichedEvents := make([]map[string]interface{}, 0, len(events))
+	for _, event := range events {
+		enrichedEvent := map[string]interface{}{
+			"id":           event.ID,
+			"title":        event.Title,
+			"description":  event.Description,
+			"start_time":   event.StartTime,
+			"end_time":     event.EndTime,
+			"capacity":     event.Capacity,
+			"price_sats":   event.PriceSats,
+			"stream_url":   event.StreamURL,
+			"is_active":    event.IsActive,
+			"created_at":   event.CreatedAt,
+			"updated_at":   event.UpdatedAt,
+		}
+		
+		// Add UMA invoice information if available
+		if event.UMARequestInvoice != nil {
+			enrichedEvent["uma_request_invoice"] = map[string]interface{}{
+				"invoice_id":   event.UMARequestInvoice.InvoiceID,
+				"bolt11":       event.UMARequestInvoice.Bolt11,
+				"amount_sats":  event.UMARequestInvoice.AmountSats,
+				"payment_hash": event.UMARequestInvoice.PaymentHash,
+				"expires_at":   event.UMARequestInvoice.ExpiresAt,
+			}
+		}
+		
+		// Add user ticket status if user is authenticated
+		if currentUser != nil {
+			hasTicket, err := h.ticketRepo.HasUserTicketForEvent(currentUser.ID, event.ID)
+			if err != nil {
+				h.logger.Error("Failed to check user ticket status", "user_id", currentUser.ID, "event_id", event.ID, "error", err)
+				// Continue without ticket status if there's an error
+				enrichedEvent["user_has_ticket"] = false
+			} else {
+				enrichedEvent["user_has_ticket"] = hasTicket
+			}
+		} else {
+			enrichedEvent["user_has_ticket"] = false
+		}
+		
+		enrichedEvents = append(enrichedEvents, enrichedEvent)
+	}
+	
 	middleware.WriteJSON(w, http.StatusOK, models.SuccessResponse{
 		Message: "Events retrieved successfully",
-		Data:    events,
+		Data:    enrichedEvents,
 	})
 }
 
@@ -100,9 +154,55 @@ func (h *EventHandlers) HandleGetEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	
+	// Get current user from context (if authenticated)
+	var currentUser *models.User
+	if user := middleware.GetUserFromContext(r.Context()); user != nil {
+		currentUser = user
+	}
+	
+	// Enrich event with user ticket status
+	enrichedEvent := map[string]interface{}{
+		"id":           event.ID,
+		"title":        event.Title,
+		"description":  event.Description,
+		"start_time":   event.StartTime,
+		"end_time":     event.EndTime,
+		"capacity":     event.Capacity,
+		"price_sats":   event.PriceSats,
+		"stream_url":   event.StreamURL,
+		"is_active":    event.IsActive,
+		"created_at":   event.CreatedAt,
+		"updated_at":   event.UpdatedAt,
+	}
+	
+	// Add UMA invoice information if available
+	if event.UMARequestInvoice != nil {
+		enrichedEvent["uma_request_invoice"] = map[string]interface{}{
+			"invoice_id":   event.UMARequestInvoice.InvoiceID,
+			"bolt11":       event.UMARequestInvoice.Bolt11,
+			"amount_sats":  event.UMARequestInvoice.AmountSats,
+			"payment_hash": event.UMARequestInvoice.PaymentHash,
+			"expires_at":   event.UMARequestInvoice.ExpiresAt,
+		}
+	}
+	
+	// Add user ticket status if user is authenticated
+	if currentUser != nil {
+		hasTicket, err := h.ticketRepo.HasUserTicketForEvent(currentUser.ID, event.ID)
+		if err != nil {
+			h.logger.Error("Failed to check user ticket status", "user_id", currentUser.ID, "event_id", event.ID, "error", err)
+			// Continue without ticket status if there's an error
+			enrichedEvent["user_has_ticket"] = false
+		} else {
+			enrichedEvent["user_has_ticket"] = hasTicket
+		}
+	} else {
+		enrichedEvent["user_has_ticket"] = false
+	}
+	
 	middleware.WriteJSON(w, http.StatusOK, models.SuccessResponse{
 		Message: "Event retrieved successfully",
-		Data:    event,
+		Data:    enrichedEvent,
 	})
 }
 

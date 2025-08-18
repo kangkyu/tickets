@@ -45,6 +45,7 @@ type TicketRepository interface {
 	UpdatePaymentStatus(id int, status string) error
 	GetPendingTickets() ([]models.Ticket, error)
 	CountByEventAndStatus(eventID int, status string) (int, error)
+	HasUserTicketForEvent(userID, eventID int) (bool, error)
 }
 
 // PaymentRepository defines operations for payment data

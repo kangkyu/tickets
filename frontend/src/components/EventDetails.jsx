@@ -1,5 +1,5 @@
 import { useParams, Link, Navigate } from 'react-router-dom'
-import { ArrowLeft, Calendar, MapPin, Users, Clock, Share2, Heart, Zap } from 'lucide-react'
+import { ArrowLeft, Calendar, MapPin, Users, Clock, Share2, Heart, Zap, CheckCircle, Ticket } from 'lucide-react'
 import { useEvent } from '../hooks/useEvents'
 import { useAuth } from '../contexts/AuthContext'
 import { formatEventDate, formatPrice, formatSatsToUSD } from '../utils/formatters'
@@ -71,6 +71,7 @@ const EventDetails = () => {
 
   const isEventPassed = new Date(event.start_time) < new Date()
   const isSoldOut = event.capacity === 0 // For now, we'll assume all capacity is available
+  const hasTicket = event.user_has_ticket
 
   return (
     <div className="space-y-6">
@@ -129,6 +130,14 @@ const EventDetails = () => {
                 <p className="text-lg opacity-80">Virtual Event</p>
               </div>
             </div>
+            
+            {/* Ticket Purchase Status Badge */}
+            {hasTicket && (
+              <span className="absolute top-4 left-4 bg-green-500 text-white text-sm font-medium px-3 py-1 rounded-full flex items-center gap-2">
+                <CheckCircle className="w-4 h-4" />
+                Ticket Purchased
+              </span>
+            )}
           </div>
 
           {/* Event Description */}
@@ -210,7 +219,11 @@ const EventDetails = () => {
 
               {/* Status */}
               <div className="text-center">
-                {isEventPassed ? (
+                {hasTicket ? (
+                  <span className="inline-block bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium">
+                    You have a ticket!
+                  </span>
+                ) : isEventPassed ? (
                   <span className="inline-block bg-red-100 text-red-800 px-3 py-1 rounded-full text-sm font-medium">
                     Event has passed
                   </span>
@@ -230,7 +243,15 @@ const EventDetails = () => {
               </div>
 
               {/* Purchase Button or Login Prompt */}
-              {!isEventPassed && !isSoldOut ? (
+              {hasTicket ? (
+                <Link
+                  to="/tickets"
+                  className="btn-secondary w-full text-center flex items-center justify-center gap-2"
+                >
+                  <Ticket className="w-4 h-4" />
+                  View My Ticket
+                </Link>
+              ) : !isEventPassed && !isSoldOut ? (
                 isAuthenticated ? (
                   <Link
                     to={`/events/${event.id}/purchase`}

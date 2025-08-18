@@ -124,3 +124,14 @@ func (r *ticketRepository) CountByEventAndStatus(eventID int, status string) (in
 	err := r.db.Get(&count, query, eventID, status)
 	return count, err
 }
+
+// HasUserTicketForEvent checks if a user has any tickets for a specific event
+func (r *ticketRepository) HasUserTicketForEvent(userID, eventID int) (bool, error) {
+	var count int
+	query := `SELECT COUNT(*) FROM tickets WHERE user_id = $1 AND event_id = $2`
+	err := r.db.Get(&count, query, userID, eventID)
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}

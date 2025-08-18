@@ -399,46 +399,63 @@ func (h *TicketHandlers) HandleGetUserTickets(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	h.logger.Info("Fetching user tickets", "user_id", userID)
+	h.logger.Info("Fetching tickets for user", "user_id", userID)
 
 	tickets, err := h.ticketRepo.GetByUserID(userID)
 	if err != nil {
 		h.logger.Error("Failed to fetch user tickets", "user_id", userID, "error", err)
-		middleware.WriteError(w, http.StatusInternalServerError, "Failed to fetch user tickets")
+		middleware.WriteError(w, http.StatusInternalServerError, "Failed to fetch tickets")
 		return
 	}
 
 	// Enrich tickets with event information
-	ticketDetails := make([]map[string]interface{}, 0, len(tickets))
+	enrichedTickets := make([]map[string]interface{}, 0, len(tickets))
 	for _, ticket := range tickets {
+		// Get event information for each ticket
 		event, err := h.eventRepo.GetByID(ticket.EventID)
 		if err != nil {
-			h.logger.Warn("Failed to fetch event for ticket", "ticket_id", ticket.ID, "event_id", ticket.EventID, "error", err)
+			h.logger.Error("Failed to fetch event for ticket", "ticket_id", ticket.ID, "event_id", ticket.EventID, "error", err)
 			continue
 		}
 
-		ticketDetail := map[string]interface{}{
+		// Get payment information for each ticket
+		payment, err := h.paymentRepo.GetByTicketID(ticket.ID)
+		if err != nil {
+			h.logger.Error("Failed to fetch payment for ticket", "ticket_id", ticket.ID, "error", err)
+		}
+
+		enrichedTicket := map[string]interface{}{
 			"id":             ticket.ID,
-			"user_id":        ticket.UserID,
 			"ticket_code":    ticket.TicketCode,
 			"payment_status": ticket.PaymentStatus,
+			"uma_address":    ticket.UMAAddress,
 			"created_at":     ticket.CreatedAt,
-			"paid_at":        ticket.PaidAt,
+			"updated_at":     ticket.UpdatedAt,
 			"event": map[string]interface{}{
-				"id":         event.ID,
-				"title":      event.Title,
-				"start_time": event.StartTime,
-				"end_time":   event.EndTime,
-				"stream_url": event.StreamURL,
-				"price_sats": event.PriceSats,
+				"id":          event.ID,
+				"title":       event.Title,
+				"start_time":  event.StartTime,
+				"end_time":    event.EndTime,
+				"stream_url":  event.StreamURL,
+				"price_sats":  event.PriceSats,
 			},
 		}
-		ticketDetails = append(ticketDetails, ticketDetail)
+
+		// Add payment information if available
+		if payment != nil {
+			enrichedTicket["payment"] = map[string]interface{}{
+				"id":     payment.ID,
+				"status": payment.Status,
+				"amount": payment.Amount,
+			}
+		}
+
+		enrichedTickets = append(enrichedTickets, enrichedTicket)
 	}
 
 	middleware.WriteJSON(w, http.StatusOK, models.SuccessResponse{
 		Message: "User tickets retrieved successfully",
-		Data:    ticketDetails,
+		Data:    enrichedTickets,
 	})
 }
 
