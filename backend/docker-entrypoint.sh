@@ -3,27 +3,30 @@ set -e
 
 echo "🚀 Starting UMA Tickets Backend..."
 
+# Check if DATABASE_URL is set
+if [ -z "$DATABASE_URL" ]; then
+    echo "❌ ERROR: DATABASE_URL environment variable is not set!"
+    echo "   This is required for the application to start."
+    echo "   Please ensure DATABASE_URL is configured in your ECS task definition."
+    exit 1
+fi
+
+echo "✅ DATABASE_URL is configured"
+
 # Wait for database to be ready
 echo "⏳ Waiting for database to be ready..."
-until pg_isready -h $DB_HOST -p $DB_PORT -U $DB_USER; do
-  echo "Database is not ready yet. Waiting..."
-  sleep 2
+
+# Use DATABASE_URL directly with pg_isready
+until pg_isready -d "$DATABASE_URL"; do
+    echo "Database is not ready yet. Waiting..."
+    sleep 2
 done
 
 echo "✅ Database is ready!"
 
 # Run database migrations
 echo "🔄 Running database migrations..."
-if [ -n "$DATABASE_URL" ]; then
-    echo "Using DATABASE_URL for migrations"
-    dbmate up
-elif [ -n "$DB_HOST" ] && [ -n "$DB_PORT" ] && [ -n "$DB_USER" ] && [ -n "$DB_NAME" ]; then
-    echo "Using individual DB environment variables for migrations"
-    export DATABASE_URL="postgres://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}?sslmode=disable"
-    dbmate up
-else
-    echo "⚠️  No database configuration found. Skipping migrations."
-fi
+dbmate up
 
 echo "✅ Database migrations completed!"
 
