@@ -11,7 +11,9 @@ on:
 
 env:
   AWS_REGION: us-east-1
-  ECR_REPOSITORY: uma-tickets/backend
+  ECR_REPOSITORY: uma-tickets-staging/backend
+  ECS_CLUSTER: uma-tickets-staging-cluster
+  ECS_SERVICE: uma-tickets-staging-backend
 
 jobs:
   build-and-deploy:
@@ -56,8 +58,8 @@ jobs:
       run: |
         # Force new deployment by updating the ECS service
         aws ecs update-service \
-          --cluster uma-tickets-cluster \
-          --service uma-tickets-backend \
+          --cluster ${{ env.ECS_CLUSTER }} \
+          --service ${{ env.ECS_SERVICE }} \
           --force-new-deployment \
           --region ${{ env.AWS_REGION }}
 

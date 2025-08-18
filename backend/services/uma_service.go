@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"tickets-by-uma/models"
-
 	"github.com/lightsparkdev/go-sdk/services"
+
+	"tickets-by-uma/models"
 )
 
 // UMAService defines the interface for UMA payment operations
