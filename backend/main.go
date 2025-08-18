@@ -26,7 +26,7 @@ func main() {
 
 	// Load configuration
 	cfg := config.LoadConfig()
-	logger.Info("Configuration loaded", 
+	logger.Info("Configuration loaded",
 		"port", cfg.Port,
 		"database_url", maskDatabaseURL(cfg.DatabaseURL),
 	)
@@ -55,7 +55,7 @@ func main() {
 
 	// Create server
 	srv := server.NewServer(db, logger, cfg)
-	
+
 	// HTTP server setup
 	httpServer := &http.Server{
 		Addr:         ":" + cfg.Port,
@@ -80,14 +80,14 @@ func main() {
 	<-quit
 
 	logger.Info("Shutting down server...")
-	
+
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	
+
 	if err := httpServer.Shutdown(ctx); err != nil {
 		logger.Error("Server forced to shutdown", "error", err)
 	}
-	
+
 	logger.Info("Server exited gracefully")
 }
 
@@ -99,4 +99,3 @@ func maskDatabaseURL(url string) string {
 	}
 	return "***"
 }
-

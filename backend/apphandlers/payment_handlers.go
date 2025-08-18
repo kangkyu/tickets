@@ -3,11 +3,12 @@ package apphandlers
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strconv"
 
 	"github.com/gorilla/mux"
-	"log/slog"
+
 	"tickets-by-uma/middleware"
 	"tickets-by-uma/models"
 	"tickets-by-uma/repositories"
