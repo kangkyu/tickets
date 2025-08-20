@@ -713,11 +713,13 @@ applications:
       cache:
         paths:
           - node_modules/**/*
-      rewrites:
-        - source: '</^[^.]+$|\.(?!(css|gif|ico|jpg|js|png|txt|svg|woff|ttf|map|json)$)([^.]+$)/>'
-          target: '/'
-          status: '200'
 EOT
+
+  custom_rule {
+    source = "/<*>"
+    target = "/index.html"
+    status = "404-200"
+  }
 
   # Environment variables for frontend
   environment_variables = {
