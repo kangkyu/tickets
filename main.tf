@@ -713,13 +713,9 @@ applications:
       cache:
         paths:
           - node_modules/**/*
-      redirects:
-        - source: '/(.*)/$'
-          target: '/$1'
-          status: '301'
       rewrites:
         - source: '</^[^.]+$|\.(?!(css|gif|ico|jpg|js|png|txt|svg|woff|ttf|map|json)$)([^.]+$)/>'
-          target: '/index.html'
+          target: '/'
           status: '200'
 EOT
 
