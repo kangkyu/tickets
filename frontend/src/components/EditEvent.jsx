@@ -483,6 +483,7 @@ const EditEvent = () => {
                       This paid event needs a UMA Request invoice for ticket sales. Create one now.
                     </p>
                     <button
+                      type="button"
                       onClick={handleCreateUMAInvoice}
                       className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium"
                     >
@@ -526,27 +527,6 @@ const EditEvent = () => {
                 </div>
               )}
 
-              <div className="flex space-x-3 mt-4">
-                {!umaInvoice.exists ? (
-                  <button
-                    type="button"
-                    onClick={handleCreateUMAInvoice}
-                    disabled={umaLoading}
-                    className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
-                  >
-                    {umaLoading ? 'Creating...' : 'Create UMA Request Invoice'}
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={handleUpdateUMAInvoice}
-                    disabled={umaLoading}
-                    className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50"
-                  >
-                    {umaLoading ? 'Updating...' : 'Update UMA Request Invoice'}
-                  </button>
-                )}
-              </div>
 
               <p className="mt-2 text-sm text-gray-600">
                 UMA Request invoices allow users to purchase tickets using Lightning Network payments. 
