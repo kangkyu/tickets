@@ -8,6 +8,7 @@ const AdminDashboard = () => {
   const location = useLocation()
   const [events, setEvents] = useState([])
   const [pendingPayments, setPendingPayments] = useState([])
+  const [nodeBalance, setNodeBalance] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [successMessage, setSuccessMessage] = useState('')
@@ -52,6 +53,18 @@ const AdminDashboard = () => {
         setPendingPayments(paymentsData.data || [])
       }
 
+      // Fetch node balance (admin only)
+      const balanceResponse = await fetch(`${config.apiUrl}/api/admin/node/balance`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+      
+      if (balanceResponse.ok) {
+        const balanceData = await balanceResponse.json()
+        setNodeBalance(balanceData.data || null)
+      }
+
     } catch (error) {
       console.error('Failed to fetch admin data:', error)
       setError('Failed to load admin data')
@@ -90,7 +103,7 @@ const AdminDashboard = () => {
       )}
 
       {/* Quick Actions */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <Link
           to="/admin/events/new"
           className="bg-blue-500 hover:bg-blue-600 text-white p-6 rounded-lg shadow-md transition-colors"
@@ -132,6 +145,30 @@ const AdminDashboard = () => {
             <div className="ml-4">
               <h3 className="text-lg font-semibold">Pending Payments</h3>
               <p className="text-2xl font-bold">{pendingPayments.length}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-purple-500 text-white p-6 rounded-lg shadow-md">
+          <div className="flex items-center">
+            <div className="flex-shrink-0">
+              <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+            </div>
+            <div className="ml-4">
+              <h3 className="text-lg font-semibold">Lightning Node Balance</h3>
+              {nodeBalance ? (
+                <div>
+                  <p className="text-2xl font-bold">{nodeBalance.available_balance_sats?.toLocaleString() || 0} sats</p>
+                  <p className="text-purple-100 text-sm">
+                    Total: {nodeBalance.total_balance_sats?.toLocaleString() || 0} sats
+                  </p>
+                  <p className="text-purple-100 text-xs">Status: {nodeBalance.status || 'unknown'}</p>
+                </div>
+              ) : (
+                <p className="text-purple-100">Loading...</p>
+              )}
             </div>
           </div>
         </div>

@@ -100,10 +100,12 @@ func (h *EventHandlers) HandleGetEvents(w http.ResponseWriter, r *http.Request) 
 		// Add UMA invoice information if available
 		if event.UMARequestInvoice != nil {
 			enrichedEvent["uma_request_invoice"] = map[string]interface{}{
+				"id":           event.UMARequestInvoice.ID,
 				"invoice_id":   event.UMARequestInvoice.InvoiceID,
 				"bolt11":       event.UMARequestInvoice.Bolt11,
 				"amount_sats":  event.UMARequestInvoice.AmountSats,
 				"payment_hash": event.UMARequestInvoice.PaymentHash,
+				"uma_address":  event.UMARequestInvoice.UMAAddress,
 				"expires_at":   event.UMARequestInvoice.ExpiresAt,
 			}
 		}
@@ -179,10 +181,12 @@ func (h *EventHandlers) HandleGetEvent(w http.ResponseWriter, r *http.Request) {
 	// Add UMA invoice information if available
 	if event.UMARequestInvoice != nil {
 		enrichedEvent["uma_request_invoice"] = map[string]interface{}{
+			"id":           event.UMARequestInvoice.ID,
 			"invoice_id":   event.UMARequestInvoice.InvoiceID,
 			"bolt11":       event.UMARequestInvoice.Bolt11,
 			"amount_sats":  event.UMARequestInvoice.AmountSats,
 			"payment_hash": event.UMARequestInvoice.PaymentHash,
+			"uma_address":  event.UMARequestInvoice.UMAAddress,
 			"expires_at":   event.UMARequestInvoice.ExpiresAt,
 		}
 	}
@@ -266,8 +270,8 @@ func (h *EventHandlers) HandleUpdateEvent(w http.ResponseWriter, r *http.Request
 
 	h.logger.Info("Updating event", "event_id", eventID)
 
-	// Get existing event
-	event, err := h.eventRepo.GetByID(eventID)
+	// Get existing event with UMA invoice data
+	event, err := h.eventRepo.GetByIDWithUMAInvoice(eventID)
 	if err != nil {
 		h.logger.Error("Failed to fetch event for update", "event_id", eventID, "error", err)
 		middleware.WriteError(w, http.StatusInternalServerError, "Failed to fetch event")
@@ -362,6 +366,29 @@ func (h *EventHandlers) HandleDeleteEvent(w http.ResponseWriter, r *http.Request
 	})
 }
 
+// HandleGetNodeBalance returns the Lightning node balance (admin only)
+func (h *EventHandlers) HandleGetNodeBalance(w http.ResponseWriter, r *http.Request) {
+	h.logger.Info("Admin requesting node balance")
+
+	balance, err := h.umaService.GetNodeBalance()
+	if err != nil {
+		h.logger.Error("Failed to get node balance", "error", err)
+		middleware.WriteError(w, http.StatusInternalServerError, "Failed to retrieve node balance")
+		return
+	}
+
+	h.logger.Info("Node balance retrieved successfully",
+		"total_sats", balance.TotalBalanceSats,
+		"available_sats", balance.AvailableBalanceSats,
+		"node_id", balance.NodeID,
+		"status", balance.Status)
+
+	middleware.WriteJSON(w, http.StatusOK, models.SuccessResponse{
+		Message: "Node balance retrieved successfully",
+		Data:    balance,
+	})
+}
+
 
 // HandleCreateEventUMAInvoice creates a UMA Request invoice for a specific event (admin only)
 func (h *EventHandlers) HandleCreateEventUMAInvoice(w http.ResponseWriter, r *http.Request) {
@@ -374,8 +401,8 @@ func (h *EventHandlers) HandleCreateEventUMAInvoice(w http.ResponseWriter, r *ht
 
 	h.logger.Info("Creating UMA Request invoice for event", "event_id", eventID)
 
-	// Get the event
-	event, err := h.eventRepo.GetByID(eventID)
+	// Get the event with UMA invoice data
+	event, err := h.eventRepo.GetByIDWithUMAInvoice(eventID)
 	if err != nil {
 		h.logger.Error("Failed to fetch event for UMA invoice creation", "event_id", eventID, "error", err)
 		middleware.WriteError(w, http.StatusInternalServerError, "Failed to fetch event")
@@ -422,10 +449,16 @@ func (h *EventHandlers) HandleCreateEventUMAInvoice(w http.ResponseWriter, r *ht
 	if err := h.umaRepo.Create(umaInvoiceRecord); err != nil {
 		h.logger.Error("Failed to save UMA Request invoice to database",
 			"event_id", eventID,
+			"invoice_id", umaInvoice.ID,
 			"error", err)
 		middleware.WriteError(w, http.StatusInternalServerError, "Failed to save UMA Request invoice")
 		return
 	}
+
+	h.logger.Info("UMA Request invoice saved to database successfully",
+		"event_id", eventID,
+		"invoice_id", umaInvoice.ID,
+		"uma_address", umaAddress)
 
 	h.logger.Info("UMA Request invoice created for event",
 		"event_id", eventID,

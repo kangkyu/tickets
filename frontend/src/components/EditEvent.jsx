@@ -202,63 +202,6 @@ const EditEvent = () => {
     }
   }
 
-  const handleUpdateUMAInvoice = async () => {
-    setUmaLoading(true)
-    setUmaError('')
-    setUmaSuccess('')
-
-    try {
-      // Update the event first to trigger UMA invoice regeneration
-      const eventData = {
-        price_sats: parseInt(formData.priceSats)
-      }
-
-      const response = await fetch(`${config.apiUrl}/api/admin/events/${eventId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(eventData)
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.message || 'Failed to update event')
-      }
-
-      // Fetch the updated event to get new UMA invoice
-      const updatedResponse = await fetch(`${config.apiUrl}/api/events/${eventId}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      })
-
-      if (updatedResponse.ok) {
-        const result = await updatedResponse.json()
-        const event = result.data
-
-        setUmaInvoice({
-          id: event.uma_request_invoice?.id || '',
-          bolt11: event.uma_request_invoice?.bolt11 || '',
-          address: event.uma_request_invoice?.uma_address || '',
-          exists: !!(event.uma_request_invoice && event.uma_request_invoice.id)
-        })
-
-        setUmaSuccess('UMA Request invoice updated successfully!')
-        
-        // Clear success message after 5 seconds
-        setTimeout(() => {
-          setUmaSuccess('')
-        }, 5000)
-      }
-
-    } catch (err) {
-      setUmaError(err.message)
-    } finally {
-      setUmaLoading(false)
-    }
-  }
 
   if (loading) {
     return (
@@ -461,15 +404,8 @@ const EditEvent = () => {
                     </div>
                     <div className="bg-white rounded-md p-3 space-y-2 text-sm">
                       <div><strong>Invoice ID:</strong> {umaInvoice.id}</div>
-                      <div><strong>Bolt11:</strong> <code className="bg-gray-100 px-2 py-1 rounded text-xs">{umaInvoice.bolt11}</code></div>
                       <div><strong>UMA Address:</strong> <code className="bg-gray-100 px-2 py-1 rounded text-xs">{umaInvoice.address}</code></div>
                     </div>
-                    <button
-                      onClick={handleUpdateUMAInvoice}
-                      className="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-md text-sm font-medium"
-                    >
-                      Update Invoice
-                    </button>
                   </div>
                 ) : (
                   <div className="space-y-3">

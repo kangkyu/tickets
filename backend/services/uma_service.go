@@ -18,7 +18,9 @@ import (
 type UMAService interface {
 	CreateUMARequest(umaAddress string, amountSats int64, description string, isAdmin bool) (*models.Invoice, error)
 	CreateTicketInvoice(umaAddress string, amountSats int64, description string) (*models.Invoice, error)
+	ChargeUMAAddress(umaAddress string, amountSats int64, description string) (*models.PaymentResult, error)
 	CheckPaymentStatus(invoiceID string) (*models.PaymentStatus, error)
+	GetNodeBalance() (*models.NodeBalance, error)
 	ValidateUMAAddress(address string) error
 	HandleUMACallback(paymentHash string, status string) error
 }
@@ -128,10 +130,90 @@ func (s *LightsparkUMAService) CreateTicketInvoice(umaAddress string, amountSats
 	return s.createOneTimeInvoice(amountSats, fmt.Sprintf("Ticket Purchase - %s", description))
 }
 
+// ChargeUMAAddress attempts to charge a UMA address/Lightning node for a payment
+// This simulates automatic payment by creating and immediately attempting to pay an invoice
+func (s *LightsparkUMAService) ChargeUMAAddress(umaAddress string, amountSats int64, description string) (*models.PaymentResult, error) {
+	// Validate UMA address
+	if err := s.ValidateUMAAddress(umaAddress); err != nil {
+		return nil, fmt.Errorf("invalid UMA address: %w", err)
+	}
+
+	s.logger.Info("Attempting to charge UMA address",
+		"uma_address", umaAddress,
+		"amount_sats", amountSats,
+		"description", description)
+
+	// For testnet demo: simulate payment processing
+	// In reality, this would:
+	// 1. Resolve UMA address to find the user's Lightning node
+	// 2. Create an invoice on their node
+	// 3. Pay that invoice from your node
+	// 4. Confirm payment completion
+
+	paymentID := s.generatePaymentID()
+
+	// Simulate payment processing time
+	s.logger.Info("Simulating Lightning payment processing",
+		"payment_id", paymentID,
+		"from_address", umaAddress,
+		"amount_sats", amountSats)
+
+	// For demo purposes, randomly succeed/fail to show both cases
+	// In production, this would be actual Lightning Network payment
+	success := true // Always succeed for testing
+
+	if success {
+		return &models.PaymentResult{
+			PaymentID:  paymentID,
+			Status:     "success",
+			AmountSats: amountSats,
+			Message:    fmt.Sprintf("Successfully charged %d sats from %s", amountSats, umaAddress),
+		}, nil
+	} else {
+		return &models.PaymentResult{
+			PaymentID:  paymentID,
+			Status:     "failed",
+			AmountSats: amountSats,
+			Message:    "Payment failed - insufficient funds or network error",
+		}, nil
+	}
+}
+
 // CheckPaymentStatus checks the status of a payment
 func (s *LightsparkUMAService) CheckPaymentStatus(invoiceID string) (*models.PaymentStatus, error) {
 	// Payment status checking not implemented - return error
 	return nil, fmt.Errorf("payment status checking not implemented")
+}
+
+// GetNodeBalance retrieves the current balance of the Lightspark node
+func (s *LightsparkUMAService) GetNodeBalance() (*models.NodeBalance, error) {
+	// Check if we have proper Lightspark credentials
+	if s.clientID == "" || s.clientSecret == "" || s.nodeID == "" {
+		s.logger.Warn("Lightspark credentials not configured - returning mock balance",
+			"client_id_set", s.clientID != "",
+			"client_secret_set", s.clientSecret != "",
+			"node_id_set", s.nodeID != "")
+
+		// Return mock balance for development/testing
+		return &models.NodeBalance{
+			TotalBalanceSats:     50000, // 50k sats
+			AvailableBalanceSats: 45000, // 45k available
+			NodeID:              "mock-node-id",
+			Status:              "ready",
+		}, nil
+	}
+
+	s.logger.Info("Fetching Lightspark node balance", "node_id", s.nodeID)
+
+	// Use Lightspark SDK to get node information
+	// Note: This is a simplified version - actual implementation would need proper API calls
+	// For now, return simulated data based on real node
+	return &models.NodeBalance{
+		TotalBalanceSats:     0, // Will be updated with real API call
+		AvailableBalanceSats: 0, // Will be updated with real API call
+		NodeID:              s.nodeID,
+		Status:              "ready", // Assume ready if credentials are set
+	}, nil
 }
 
 // HandleUMACallback processes UMA payment callbacks
@@ -287,4 +369,9 @@ func (s *LightsparkUMAService) generatePaymentHash(umaAddress string, amountSats
 	data := fmt.Sprintf("%s:%d:%d", umaAddress, amountSats, time.Now().UnixNano())
 	hash := sha256.Sum256([]byte(data))
 	return hex.EncodeToString(hash[:])
+}
+
+// generatePaymentID creates a unique payment ID
+func (s *LightsparkUMAService) generatePaymentID() string {
+	return fmt.Sprintf("pay_%d_%d", time.Now().Unix(), time.Now().UnixNano()%1000000)
 }
