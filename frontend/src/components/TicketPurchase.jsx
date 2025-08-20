@@ -126,16 +126,19 @@ const TicketPurchase = () => {
       const result = await response.json()
       
       // Navigate to payment status page
-      // Handle both paid events (with UMA request) and free events
-      const invoiceId = result.data.uma_request?.invoice_id || null
+      // Handle both paid events (with UMA Request) and free events
+      const umaRequest = result.data.uma_request || null
+      const isFreeEvent = !result.data.payment_required
       
       navigate(`/tickets/${result.data.ticket.id}/payment`, { 
         state: { 
           ticketId: result.data.ticket.id,
-          invoiceId: invoiceId,
+          invoiceId: umaRequest?.invoice_id || null,
+          bolt11: umaRequest?.bolt11 || null,
+          amountSats: umaRequest?.amount_sats || 0,
           umaAddress: data.umaAddress,
           ticketData: data,
-          isFreeEvent: !result.data.uma_request // Flag to indicate if this is a free event
+          isFreeEvent: isFreeEvent
         }
       })
       

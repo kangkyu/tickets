@@ -151,29 +151,34 @@ func (h *TicketHandlers) HandlePurchaseTicket(w http.ResponseWriter, r *http.Req
 		payment = nil
 
 	} else {
-		// Paid event - validate UMA address and use pre-created invoice
+		// Paid event - use pre-created UMA Request invoice
 		if err := h.umaService.ValidateUMAAddress(req.UMAAddress); err != nil {
 			middleware.WriteError(w, http.StatusBadRequest, fmt.Sprintf("Invalid UMA address: %v", err))
 			return
 		}
 
-		// Use the pre-created UMA Request invoice from the event
-		// This follows UMA protocol where businesses create invoices for products/services
-		invoice := &models.Invoice{
-			ID:         event.UMARequestInvoice.InvoiceID,
-			Bolt11:     event.UMARequestInvoice.Bolt11,
-			AmountSats: event.UMARequestInvoice.AmountSats,
-			Status:     "pending",
-			ExpiresAt:  nil, // Will be set when payment is processed
+		// Check if event has UMA Request invoice
+		if event.UMARequestInvoice == nil {
+			h.logger.Error("Paid event missing UMA Request invoice",
+				"event_id", req.EventID,
+				"price_sats", event.PriceSats)
+			middleware.WriteError(w, http.StatusServiceUnavailable, "Event payment system not configured - admin must create UMA Request invoice")
+			return
 		}
 
-		// Create ticket record for paid event
+		h.logger.Info("Using UMA Request invoice for ticket purchase",
+			"uma_address", req.UMAAddress,
+			"amount_sats", event.PriceSats,
+			"event_id", req.EventID,
+			"uma_invoice_id", event.UMARequestInvoice.InvoiceID)
+
+		// Create ticket record with pending payment
 		ticket = &models.Ticket{
 			EventID:       req.EventID,
 			UserID:        req.UserID,
 			TicketCode:    ticketCode,
 			PaymentStatus: "pending",
-			InvoiceID:     invoice.ID,
+			InvoiceID:     event.UMARequestInvoice.InvoiceID,
 			UMAAddress:    req.UMAAddress,
 		}
 
@@ -183,10 +188,10 @@ func (h *TicketHandlers) HandlePurchaseTicket(w http.ResponseWriter, r *http.Req
 			return
 		}
 
-		// Create payment record for this UMA request
+		// Create payment record using UMA Request invoice
 		payment = &models.Payment{
 			TicketID:  ticket.ID,
-			InvoiceID: invoice.ID,
+			InvoiceID: event.UMARequestInvoice.InvoiceID,
 			Amount:    event.UMARequestInvoice.AmountSats,
 			Status:    "pending",
 		}
@@ -197,9 +202,9 @@ func (h *TicketHandlers) HandlePurchaseTicket(w http.ResponseWriter, r *http.Req
 			return
 		}
 
-		h.logger.Info("Paid ticket purchase using UMA Request invoice",
+		h.logger.Info("Ticket created with UMA Request payment",
 			"ticket_id", ticket.ID,
-			"invoice_id", invoice.ID,
+			"uma_invoice_id", event.UMARequestInvoice.InvoiceID,
 			"uma_address", req.UMAAddress)
 	}
 
@@ -216,15 +221,19 @@ func (h *TicketHandlers) HandlePurchaseTicket(w http.ResponseWriter, r *http.Req
 		},
 	}
 
-	// Add UMA Request invoice information only for paid events
+	// Add UMA Request invoice information for paid events
 	if event.PriceSats > 0 && event.UMARequestInvoice != nil {
 		response["uma_request"] = map[string]interface{}{
 			"invoice_id":   event.UMARequestInvoice.InvoiceID,
-			"bolt11":       event.UMARequestInvoice.Bolt11,
+			"bolt11":       event.UMARequestInvoice.Bolt11,     // UMA Request uses Lightning under the hood
 			"amount_sats":  event.UMARequestInvoice.AmountSats,
 			"payment_hash": event.UMARequestInvoice.PaymentHash,
+			"uma_address":  event.UMARequestInvoice.UMAAddress,
+			"description":  event.UMARequestInvoice.Description,
 			"expires_at":   event.UMARequestInvoice.ExpiresAt,
+			"status":       "pending",
 		}
+		response["payment_required"] = true
 	}
 
 	var message string

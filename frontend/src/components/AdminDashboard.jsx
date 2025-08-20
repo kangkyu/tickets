@@ -8,19 +8,11 @@ const AdminDashboard = () => {
   const location = useLocation()
   const [events, setEvents] = useState([])
   const [pendingPayments, setPendingPayments] = useState([])
+  const [nodeBalance, setNodeBalance] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [successMessage, setSuccessMessage] = useState('')
   
-  // UMA Request state
-  const [umaRequest, setUmaRequest] = useState({
-    umaAddress: '',
-    amountSats: '',
-    description: ''
-  })
-  const [umaRequestLoading, setUmaRequestLoading] = useState(false)
-  const [umaRequestError, setUmaRequestError] = useState('')
-  const [umaRequestSuccess, setUmaRequestSuccess] = useState('')
 
   useEffect(() => {
     fetchAdminData()
@@ -61,6 +53,18 @@ const AdminDashboard = () => {
         setPendingPayments(paymentsData.data || [])
       }
 
+      // Fetch node balance (admin only)
+      const balanceResponse = await fetch(`${config.apiUrl}/api/admin/node/balance`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+      
+      if (balanceResponse.ok) {
+        const balanceData = await balanceResponse.json()
+        setNodeBalance(balanceData.data || null)
+      }
+
     } catch (error) {
       console.error('Failed to fetch admin data:', error)
       setError('Failed to load admin data')
@@ -69,61 +73,6 @@ const AdminDashboard = () => {
     }
   }
 
-  const handleUMARequestChange = (e) => {
-    const { name, value } = e.target
-    setUmaRequest(prev => ({
-      ...prev,
-      [name]: value
-    }))
-  }
-
-  const handleCreateUMARequest = async (e) => {
-    e.preventDefault()
-    
-    try {
-      setUmaRequestLoading(true)
-      setUmaRequestError('')
-      setUmaRequestSuccess('')
-      
-      const response = await fetch(`${config.apiUrl}/api/admin/uma/requests`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          uma_address: umaRequest.umaAddress,
-          amount_sats: parseInt(umaRequest.amountSats),
-          description: umaRequest.description
-        })
-      })
-      
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.message || 'Failed to create UMA request')
-      }
-      
-      const result = await response.json()
-      setUmaRequestSuccess('UMA Request created successfully!')
-      
-      // Reset form
-      setUmaRequest({
-        umaAddress: '',
-        amountSats: '',
-        description: ''
-      })
-      
-      // Clear success message after 5 seconds
-      setTimeout(() => {
-        setUmaRequestSuccess('')
-      }, 5000)
-      
-    } catch (err) {
-      setUmaRequestError(err.message)
-    } finally {
-      setUmaRequestLoading(false)
-    }
-  }
 
   if (loading) {
     return (
@@ -154,7 +103,7 @@ const AdminDashboard = () => {
       )}
 
       {/* Quick Actions */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <Link
           to="/admin/events/new"
           className="bg-blue-500 hover:bg-blue-600 text-white p-6 rounded-lg shadow-md transition-colors"
@@ -199,95 +148,32 @@ const AdminDashboard = () => {
             </div>
           </div>
         </div>
-      </div>
 
-      {/* UMA Request Creation */}
-      <div className="mb-8">
-        <h2 className="text-2xl font-bold text-gray-900 mb-4">UMA Request Management</h2>
-        <div className="bg-white shadow rounded-lg p-6">
-          <div className="mb-4">
-            <h3 className="text-lg font-medium text-gray-900 mb-2">Create Business UMA Request</h3>
-            <p className="text-sm text-gray-600">
-              Create UMA Request invoices for business services. According to UMA protocol: "A business or individual creates a one-time invoice using UMA Request for a product or service."
-            </p>
+        <div className="bg-purple-500 text-white p-6 rounded-lg shadow-md">
+          <div className="flex items-center">
+            <div className="flex-shrink-0">
+              <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+            </div>
+            <div className="ml-4">
+              <h3 className="text-lg font-semibold">Lightning Node Balance</h3>
+              {nodeBalance ? (
+                <div>
+                  <p className="text-2xl font-bold">{nodeBalance.available_balance_sats?.toLocaleString() || 0} sats</p>
+                  <p className="text-purple-100 text-sm">
+                    Total: {nodeBalance.total_balance_sats?.toLocaleString() || 0} sats
+                  </p>
+                  <p className="text-purple-100 text-xs">Status: {nodeBalance.status || 'unknown'}</p>
+                </div>
+              ) : (
+                <p className="text-purple-100">Loading...</p>
+              )}
+            </div>
           </div>
-          
-          <form onSubmit={handleCreateUMARequest} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label htmlFor="umaAddress" className="block text-sm font-medium text-gray-700">
-                  UMA Address
-                </label>
-                <input
-                  type="text"
-                  id="umaAddress"
-                  name="umaAddress"
-                  value={umaRequest.umaAddress}
-                  onChange={handleUMARequestChange}
-                  className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                  placeholder="$username@domain.com"
-                  required
-                />
-              </div>
-              
-              <div>
-                <label htmlFor="amountSats" className="block text-sm font-medium text-gray-700">
-                  Amount (sats)
-                </label>
-                <input
-                  type="number"
-                  id="amountSats"
-                  name="amountSats"
-                  value={umaRequest.amountSats}
-                  onChange={handleUMARequestChange}
-                  className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                  placeholder="1000"
-                  min="1"
-                  required
-                />
-              </div>
-              
-              <div>
-                <label htmlFor="description" className="block text-sm font-medium text-gray-700">
-                  Description
-                </label>
-                <input
-                  type="text"
-                  id="description"
-                  name="description"
-                  value={umaRequest.description}
-                  onChange={handleUMARequestChange}
-                  className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                  placeholder="Multi-use invoice for services"
-                  required
-                />
-              </div>
-            </div>
-            
-            <div className="flex justify-end">
-              <button
-                type="submit"
-                disabled={umaRequestLoading}
-                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 disabled:opacity-50"
-              >
-                {umaRequestLoading ? 'Creating...' : 'Create UMA Request'}
-              </button>
-            </div>
-          </form>
-          
-          {umaRequestError && (
-            <div className="mt-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
-              {umaRequestError}
-            </div>
-          )}
-          
-          {umaRequestSuccess && (
-            <div className="mt-4 bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded">
-              {umaRequestSuccess}
-            </div>
-          )}
         </div>
       </div>
+
 
       {/* Events Management */}
       <div className="mb-8">

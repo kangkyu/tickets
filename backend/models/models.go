@@ -91,6 +91,23 @@ type PaymentStatus struct {
 	PaymentHash string `json:"payment_hash,omitempty"`
 }
 
+// PaymentResult represents the result of a payment attempt
+type PaymentResult struct {
+	PaymentID   string `json:"payment_id"`
+	Status      string `json:"status"` // "success", "failed", "pending"
+	AmountSats  int64  `json:"amount_sats"`
+	Message     string `json:"message"`
+	TransactionHash *string `json:"transaction_hash,omitempty"`
+}
+
+// NodeBalance represents the Lightning node balance information
+type NodeBalance struct {
+	TotalBalanceSats     int64  `json:"total_balance_sats"`
+	AvailableBalanceSats int64  `json:"available_balance_sats"`
+	NodeID              string `json:"node_id"`
+	Status              string `json:"status"`
+}
+
 // TicketPurchaseRequest represents a ticket purchase request
 type TicketPurchaseRequest struct {
 	EventID    int    `json:"event_id"`

@@ -100,10 +100,12 @@ func (h *EventHandlers) HandleGetEvents(w http.ResponseWriter, r *http.Request) 
 		// Add UMA invoice information if available
 		if event.UMARequestInvoice != nil {
 			enrichedEvent["uma_request_invoice"] = map[string]interface{}{
+				"id":           event.UMARequestInvoice.ID,
 				"invoice_id":   event.UMARequestInvoice.InvoiceID,
 				"bolt11":       event.UMARequestInvoice.Bolt11,
 				"amount_sats":  event.UMARequestInvoice.AmountSats,
 				"payment_hash": event.UMARequestInvoice.PaymentHash,
+				"uma_address":  event.UMARequestInvoice.UMAAddress,
 				"expires_at":   event.UMARequestInvoice.ExpiresAt,
 			}
 		}
@@ -179,10 +181,12 @@ func (h *EventHandlers) HandleGetEvent(w http.ResponseWriter, r *http.Request) {
 	// Add UMA invoice information if available
 	if event.UMARequestInvoice != nil {
 		enrichedEvent["uma_request_invoice"] = map[string]interface{}{
+			"id":           event.UMARequestInvoice.ID,
 			"invoice_id":   event.UMARequestInvoice.InvoiceID,
 			"bolt11":       event.UMARequestInvoice.Bolt11,
 			"amount_sats":  event.UMARequestInvoice.AmountSats,
 			"payment_hash": event.UMARequestInvoice.PaymentHash,
+			"uma_address":  event.UMARequestInvoice.UMAAddress,
 			"expires_at":   event.UMARequestInvoice.ExpiresAt,
 		}
 	}
@@ -240,58 +244,6 @@ func (h *EventHandlers) HandleCreateEvent(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// Create UMA Request invoice for this event's tickets (treating tickets as products)
-	// This follows UMA protocol: "A business creates a one-time invoice using UMA Request for a product or service"
-	// Note: UMA Request invoices are only needed for paid events (price > 0)
-	// Free events (price = 0) don't need UMA invoices since tickets are free
-	if event.PriceSats > 0 {
-		umaAddress := "$event@" + h.getDomainFromConfig() // Generate UMA address for the event
-		description := fmt.Sprintf("Event Ticket: %s", event.Title)
-
-		umaInvoice, err := h.umaService.CreateUMARequest(
-			umaAddress,
-			event.PriceSats,
-			description,
-			true, // isAdmin = true for admin endpoints
-		)
-		if err != nil {
-			h.logger.Error("Failed to create UMA Request invoice for paid event",
-				"event_id", event.ID,
-				"price_sats", event.PriceSats,
-				"error", err)
-			// Don't fail the event creation, just log the error
-			// The event can still be created without the UMA invoice
-		} else {
-			// Store the UMA Request invoice in the separate table
-			umaInvoiceRecord := &models.UMARequestInvoice{
-				EventID:     event.ID,
-				InvoiceID:   umaInvoice.ID,
-				PaymentHash: umaInvoice.PaymentHash,
-				Bolt11:      umaInvoice.Bolt11,
-				AmountSats:  umaInvoice.AmountSats,
-				Status:      umaInvoice.Status,
-				UMAAddress:  umaAddress,
-				Description: description,
-				ExpiresAt:   umaInvoice.ExpiresAt,
-			}
-
-			if err := h.umaRepo.Create(umaInvoiceRecord); err != nil {
-				h.logger.Error("Failed to save UMA Request invoice to database",
-					"event_id", event.ID,
-					"error", err)
-			}
-
-			h.logger.Info("UMA Request invoice created for paid event tickets",
-				"event_id", event.ID,
-				"invoice_id", umaInvoice.ID,
-				"price_sats", event.PriceSats,
-				"uma_address", umaAddress)
-		}
-	} else {
-		h.logger.Info("Event created as free event - no UMA Request invoice needed",
-			"event_id", event.ID,
-			"price_sats", event.PriceSats)
-	}
 
 	h.logger.Info("Event created successfully", "event_id", event.ID)
 
@@ -318,8 +270,8 @@ func (h *EventHandlers) HandleUpdateEvent(w http.ResponseWriter, r *http.Request
 
 	h.logger.Info("Updating event", "event_id", eventID)
 
-	// Get existing event
-	event, err := h.eventRepo.GetByID(eventID)
+	// Get existing event with UMA invoice data
+	event, err := h.eventRepo.GetByIDWithUMAInvoice(eventID)
 	if err != nil {
 		h.logger.Error("Failed to fetch event for update", "event_id", eventID, "error", err)
 		middleware.WriteError(w, http.StatusInternalServerError, "Failed to fetch event")
@@ -357,97 +309,6 @@ func (h *EventHandlers) HandleUpdateEvent(w http.ResponseWriter, r *http.Request
 		event.IsActive = *req.IsActive
 	}
 
-	// Handle UMA Request invoice creation/updates before saving
-	// Only paid events (price > 0) need UMA Request invoices
-	// Free events (price = 0) don't need UMA invoices since tickets are free
-	if req.PriceSats != nil && *req.PriceSats != event.PriceSats {
-		if *req.PriceSats > 0 {
-			// Event is now paid - create UMA Request invoice
-			umaAddress := "$event@" + h.getDomainFromConfig() // Generate UMA address for the event
-			description := fmt.Sprintf("Event Ticket: %s (Updated)", event.Title)
-
-			umaInvoice, err := h.umaService.CreateUMARequest(
-				umaAddress,
-				*req.PriceSats, // Use the new price
-				description,
-				true, // isAdmin = true for admin endpoints
-			)
-			if err != nil {
-				h.logger.Error("Failed to create UMA Request invoice for newly paid event",
-					"event_id", eventID,
-					"new_price", *req.PriceSats,
-					"error", err)
-				// Don't fail the event update, just log the error
-			} else {
-				// Check if UMA invoice already exists for this event
-				existingInvoice, err := h.umaRepo.GetByEventID(eventID)
-				if err != nil {
-					h.logger.Error("Failed to check existing UMA invoice",
-						"event_id", eventID,
-						"error", err)
-				} else if existingInvoice != nil {
-					// Update existing invoice
-					existingInvoice.InvoiceID = umaInvoice.ID
-					existingInvoice.PaymentHash = umaInvoice.PaymentHash
-					existingInvoice.Bolt11 = umaInvoice.Bolt11
-					existingInvoice.AmountSats = umaInvoice.AmountSats
-					existingInvoice.Status = umaInvoice.Status
-					existingInvoice.Description = description
-					existingInvoice.ExpiresAt = umaInvoice.ExpiresAt
-
-					if err := h.umaRepo.Update(existingInvoice); err != nil {
-						h.logger.Error("Failed to update existing UMA invoice",
-							"event_id", eventID,
-							"error", err)
-					}
-				} else {
-					// Create new invoice
-					umaInvoiceRecord := &models.UMARequestInvoice{
-						EventID:     eventID,
-						InvoiceID:   umaInvoice.ID,
-						PaymentHash: umaInvoice.PaymentHash,
-						Bolt11:      umaInvoice.Bolt11,
-						AmountSats:  umaInvoice.AmountSats,
-						Status:      umaInvoice.Status,
-						UMAAddress:  umaAddress,
-						Description: description,
-						ExpiresAt:   umaInvoice.ExpiresAt,
-					}
-
-					if err := h.umaRepo.Create(umaInvoiceRecord); err != nil {
-						h.logger.Error("Failed to create new UMA invoice",
-							"event_id", eventID,
-							"error", err)
-					}
-				}
-
-				h.logger.Info("UMA Request invoice created for newly paid event",
-					"event_id", eventID,
-					"invoice_id", umaInvoice.ID,
-					"new_price", *req.PriceSats,
-					"uma_address", umaAddress)
-			}
-		} else if *req.PriceSats == 0 {
-			// Event is now free - remove UMA Request invoice if it exists
-			existingInvoice, err := h.umaRepo.GetByEventID(eventID)
-			if err != nil {
-				h.logger.Error("Failed to check existing UMA invoice for removal",
-					"event_id", eventID,
-					"error", err)
-			} else if existingInvoice != nil {
-				if err := h.umaRepo.Delete(existingInvoice.ID); err != nil {
-					h.logger.Error("Failed to delete UMA invoice for now-free event",
-						"event_id", eventID,
-						"error", err)
-				} else {
-					h.logger.Info("UMA Request invoice removed - event is now free",
-						"event_id", eventID,
-						"old_price", event.PriceSats,
-						"new_price", *req.PriceSats)
-				}
-			}
-		}
-	}
 
 	// Note: UMA Request invoices are only needed for paid events (price > 0)
 	// Free events (price = 0) don't need UMA invoices since tickets are free
@@ -505,73 +366,29 @@ func (h *EventHandlers) HandleDeleteEvent(w http.ResponseWriter, r *http.Request
 	})
 }
 
-// HandleCreateUMARequest creates a UMA request for multi-use invoices (admin only)
-func (h *EventHandlers) HandleCreateUMARequest(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		UMAAddress  string `json:"uma_address"`
-		AmountSats  int64  `json:"amount_sats"`
-		Description string `json:"description"`
-	}
+// HandleGetNodeBalance returns the Lightning node balance (admin only)
+func (h *EventHandlers) HandleGetNodeBalance(w http.ResponseWriter, r *http.Request) {
+	h.logger.Info("Admin requesting node balance")
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		middleware.WriteError(w, http.StatusBadRequest, "Invalid request body")
-		return
-	}
-
-	// Validate request
-	if req.UMAAddress == "" {
-		middleware.WriteError(w, http.StatusBadRequest, "UMA address is required")
-		return
-	}
-
-	if req.AmountSats <= 0 {
-		middleware.WriteError(w, http.StatusBadRequest, "Valid amount in satoshis is required")
-		return
-	}
-
-	if req.Description == "" {
-		middleware.WriteError(w, http.StatusBadRequest, "Description is required")
-		return
-	}
-
-	h.logger.Info("Creating UMA Request (admin operation)",
-		"uma_address", req.UMAAddress,
-		"amount_sats", req.AmountSats,
-		"description", req.Description)
-
-	// Create UMA Request - admin-only operation
-	invoice, err := h.umaService.CreateUMARequest(
-		req.UMAAddress,
-		req.AmountSats,
-		req.Description,
-		true, // isAdmin = true for admin endpoints
-	)
+	balance, err := h.umaService.GetNodeBalance()
 	if err != nil {
-		h.logger.Error("Failed to create UMA request", "error", err)
-		middleware.WriteError(w, http.StatusInternalServerError, err.Error())
+		h.logger.Error("Failed to get node balance", "error", err)
+		middleware.WriteError(w, http.StatusInternalServerError, "Failed to retrieve node balance")
 		return
 	}
 
-	h.logger.Info("UMA Request created successfully",
-		"invoice_id", invoice.ID,
-		"uma_address", req.UMAAddress)
+	h.logger.Info("Node balance retrieved successfully",
+		"total_sats", balance.TotalBalanceSats,
+		"available_sats", balance.AvailableBalanceSats,
+		"node_id", balance.NodeID,
+		"status", balance.Status)
 
-	middleware.WriteJSON(w, http.StatusCreated, models.SuccessResponse{
-		Message: "UMA Request created successfully",
-		Data: map[string]interface{}{
-			"invoice": map[string]interface{}{
-				"id":           invoice.ID,
-				"payment_hash": invoice.PaymentHash,
-				"bolt11":       invoice.Bolt11,
-				"amount_sats":  invoice.AmountSats,
-				"status":       invoice.Status,
-				"expires_at":   invoice.ExpiresAt,
-			},
-			"uma_address": req.UMAAddress,
-			"description": req.Description,
-		},
+	middleware.WriteJSON(w, http.StatusOK, models.SuccessResponse{
+		Message: "Node balance retrieved successfully",
+		Data:    balance,
 	})
 }
+
 
 // HandleCreateEventUMAInvoice creates a UMA Request invoice for a specific event (admin only)
 func (h *EventHandlers) HandleCreateEventUMAInvoice(w http.ResponseWriter, r *http.Request) {
@@ -584,8 +401,8 @@ func (h *EventHandlers) HandleCreateEventUMAInvoice(w http.ResponseWriter, r *ht
 
 	h.logger.Info("Creating UMA Request invoice for event", "event_id", eventID)
 
-	// Get the event
-	event, err := h.eventRepo.GetByID(eventID)
+	// Get the event with UMA invoice data
+	event, err := h.eventRepo.GetByIDWithUMAInvoice(eventID)
 	if err != nil {
 		h.logger.Error("Failed to fetch event for UMA invoice creation", "event_id", eventID, "error", err)
 		middleware.WriteError(w, http.StatusInternalServerError, "Failed to fetch event")
@@ -632,10 +449,16 @@ func (h *EventHandlers) HandleCreateEventUMAInvoice(w http.ResponseWriter, r *ht
 	if err := h.umaRepo.Create(umaInvoiceRecord); err != nil {
 		h.logger.Error("Failed to save UMA Request invoice to database",
 			"event_id", eventID,
+			"invoice_id", umaInvoice.ID,
 			"error", err)
 		middleware.WriteError(w, http.StatusInternalServerError, "Failed to save UMA Request invoice")
 		return
 	}
+
+	h.logger.Info("UMA Request invoice saved to database successfully",
+		"event_id", eventID,
+		"invoice_id", umaInvoice.ID,
+		"uma_address", umaAddress)
 
 	h.logger.Info("UMA Request invoice created for event",
 		"event_id", eventID,

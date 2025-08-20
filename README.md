@@ -15,6 +15,7 @@ docker push 800097198265.dkr.ecr.us-east-1.amazonaws.com/uma-tickets-staging/bac
 
 aws ecs update-service --cluster uma-tickets-staging-cluster --service uma-tickets-staging-backend --force-new-deployment --region us-east-1
 
+aws logs tail "/ecs/uma-tickets-staging-backend" --region us-east-1 --since 10m
 
 # deploys to Amplify frontend automatically
 git push origin master

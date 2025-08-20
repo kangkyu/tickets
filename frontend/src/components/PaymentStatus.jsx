@@ -17,7 +17,7 @@ const PaymentStatus = () => {
   const [isPolling, setIsPolling] = useState(false)
   
   // Get data from navigation state
-  const { invoiceId, umaAddress, ticketData } = location.state || {}
+  const { invoiceId, bolt11, amountSats, umaAddress, ticketData, isFreeEvent } = location.state || {}
 
   // Debug logging
   console.log('PaymentStatus component data:', {
@@ -141,8 +141,9 @@ const PaymentStatus = () => {
   }
 
   const downloadInvoice = () => {
-    if (payment?.invoice?.bolt11) {
-      const blob = new Blob([payment.invoice.bolt11], { type: 'text/plain' })
+    const invoiceString = bolt11 || payment?.invoice?.bolt11
+    if (invoiceString) {
+      const blob = new Blob([invoiceString], { type: 'text/plain' })
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url

@@ -202,63 +202,6 @@ const EditEvent = () => {
     }
   }
 
-  const handleUpdateUMAInvoice = async () => {
-    setUmaLoading(true)
-    setUmaError('')
-    setUmaSuccess('')
-
-    try {
-      // Update the event first to trigger UMA invoice regeneration
-      const eventData = {
-        price_sats: parseInt(formData.priceSats)
-      }
-
-      const response = await fetch(`${config.apiUrl}/api/admin/events/${eventId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(eventData)
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.message || 'Failed to update event')
-      }
-
-      // Fetch the updated event to get new UMA invoice
-      const updatedResponse = await fetch(`${config.apiUrl}/api/events/${eventId}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      })
-
-      if (updatedResponse.ok) {
-        const result = await updatedResponse.json()
-        const event = result.data
-
-        setUmaInvoice({
-          id: event.uma_request_invoice?.id || '',
-          bolt11: event.uma_request_invoice?.bolt11 || '',
-          address: event.uma_request_invoice?.uma_address || '',
-          exists: !!(event.uma_request_invoice && event.uma_request_invoice.id)
-        })
-
-        setUmaSuccess('UMA Request invoice updated successfully!')
-        
-        // Clear success message after 5 seconds
-        setTimeout(() => {
-          setUmaSuccess('')
-        }, 5000)
-      }
-
-    } catch (err) {
-      setUmaError(err.message)
-    } finally {
-      setUmaLoading(false)
-    }
-  }
 
   if (loading) {
     return (
@@ -461,15 +404,8 @@ const EditEvent = () => {
                     </div>
                     <div className="bg-white rounded-md p-3 space-y-2 text-sm">
                       <div><strong>Invoice ID:</strong> {umaInvoice.id}</div>
-                      <div><strong>Bolt11:</strong> <code className="bg-gray-100 px-2 py-1 rounded text-xs">{umaInvoice.bolt11}</code></div>
                       <div><strong>UMA Address:</strong> <code className="bg-gray-100 px-2 py-1 rounded text-xs">{umaInvoice.address}</code></div>
                     </div>
-                    <button
-                      onClick={handleUpdateUMAInvoice}
-                      className="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-md text-sm font-medium"
-                    >
-                      Update Invoice
-                    </button>
                   </div>
                 ) : (
                   <div className="space-y-3">
@@ -483,6 +419,7 @@ const EditEvent = () => {
                       This paid event needs a UMA Request invoice for ticket sales. Create one now.
                     </p>
                     <button
+                      type="button"
                       onClick={handleCreateUMAInvoice}
                       className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium"
                     >
@@ -526,27 +463,6 @@ const EditEvent = () => {
                 </div>
               )}
 
-              <div className="flex space-x-3 mt-4">
-                {!umaInvoice.exists ? (
-                  <button
-                    type="button"
-                    onClick={handleCreateUMAInvoice}
-                    disabled={umaLoading}
-                    className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
-                  >
-                    {umaLoading ? 'Creating...' : 'Create UMA Request Invoice'}
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={handleUpdateUMAInvoice}
-                    disabled={umaLoading}
-                    className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50"
-                  >
-                    {umaLoading ? 'Updating...' : 'Update UMA Request Invoice'}
-                  </button>
-                )}
-              </div>
 
               <p className="mt-2 text-sm text-gray-600">
                 UMA Request invoices allow users to purchase tickets using Lightning Network payments. 

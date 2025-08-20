@@ -2,6 +2,7 @@ package repositories
 
 import (
 	"database/sql"
+	"fmt"
 	"time"
 
 	"github.com/jmoiron/sqlx"
@@ -61,10 +62,14 @@ func (r *eventRepository) GetByIDWithUMAInvoice(id int) (*models.Event, error) {
 	// Fetch UMA Request invoice for this event and populate the relationship
 	umaInvoice, err := r.umaRepo.GetByEventID(id)
 	if err != nil {
-		// Log error but don't fail the request
-		// The event will be returned without UMA invoice data
-	} else {
+		// Log error but don't fail the request - event will be returned without UMA invoice data
+		// TODO: Add proper logging here to debug UMA invoice loading issues
+		fmt.Printf("ERROR: Failed to fetch UMA invoice for event %d: %v\n", id, err)
+	} else if umaInvoice != nil {
 		event.UMARequestInvoice = umaInvoice
+		fmt.Printf("SUCCESS: Loaded UMA invoice for event %d: %s\n", id, umaInvoice.InvoiceID)
+	} else {
+		fmt.Printf("INFO: No UMA invoice found for event %d\n", id)
 	}
 
 	return event, nil
