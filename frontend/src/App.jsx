@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import { Routes, Route } from 'react-router-dom'
 import { AuthProvider } from './contexts/AuthContext'
 import Layout from './components/Layout'
 import EventList from './components/EventList'
@@ -13,25 +13,13 @@ import AdminDashboard from './components/AdminDashboard'
 import CreateEvent from './components/CreateEvent'
 import EditEvent from './components/EditEvent'
 
-// Component to normalize paths and redirect if needed
-function PathNormalizer({ children }) {
-  const location = useLocation()
-  const path = location.pathname
-  
-  // If path ends with / and is not root, redirect to non-trailing slash
-  if (path.endsWith('/') && path !== '/') {
-    const normalizedPath = path.slice(0, -1)
-    return <Navigate to={normalizedPath} replace />
-  }
-  
-  return children
-}
+
 
 function App() {
   return (
     <AuthProvider>
       <Layout>
-        <PathNormalizer>
+
           <Routes>
             {/* Public routes */}
             <Route path="/" element={<EventList />} />
@@ -72,7 +60,6 @@ function App() {
               </AdminRoute>
             } />
           </Routes>
-        </PathNormalizer>
       </Layout>
     </AuthProvider>
   )

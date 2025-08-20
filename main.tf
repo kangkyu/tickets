@@ -713,6 +713,10 @@ applications:
       cache:
         paths:
           - node_modules/**/*
+      rewrites:
+        - source: '/(.*)/$'
+          target: '/$1'
+          status: '200'
 EOT
 
   # Environment variables for frontend
