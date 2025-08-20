@@ -714,8 +714,8 @@ applications:
         paths:
           - node_modules/**/*
       rewrites:
-        - source: '/(.*)/$'
-          target: '/$1'
+        - source: '</^[^.]+$|\.(?!(css|gif|ico|jpg|js|png|txt|svg|woff|ttf|map|json)$)([^.]+$)/>'
+          target: '/index.html'
           status: '200'
 EOT
 
