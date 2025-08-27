@@ -18,6 +18,21 @@ env:
 jobs:
   test:
     runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:13
+        env:
+          POSTGRES_PASSWORD: password
+          POSTGRES_USER: postgres
+          POSTGRES_DB: tickets_uma_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -27,13 +42,27 @@ jobs:
       with:
         go-version: '1.22'
         cache: true
+    - name: Install dependencies
+      working-directory: backend
+      run: go mod download
+
+    - name: Wait for PostgreSQL
+      run: |
+        until pg_isready -h localhost -p 5432 -U postgres; do
+          echo "Waiting for PostgreSQL..."
+          sleep 2
+        done
+    - name: Set up test database
+      working-directory: backend
+      run: |
+        PGPASSWORD=password psql -h localhost -U postgres -d tickets_uma_test -f db/schema.sql
 
     - name: Run tests
-      working-directory: ./backend
-      run: |
-        go mod download
-        go test -v ./...
-
+      working-directory: backend
+      env:
+        TEST_DB_URL: postgres://postgres:password@localhost:5432/tickets_uma_test?sslmode=disable
+      run: go test -v ./...
+      
     - name: Build Go binary
       working-directory: ./backend
       run: |
