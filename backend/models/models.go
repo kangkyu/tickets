@@ -93,10 +93,10 @@ type PaymentStatus struct {
 
 // PaymentResult represents the result of a payment attempt
 type PaymentResult struct {
-	PaymentID   string `json:"payment_id"`
-	Status      string `json:"status"` // "success", "failed", "pending"
-	AmountSats  int64  `json:"amount_sats"`
-	Message     string `json:"message"`
+	PaymentID       string  `json:"payment_id"`
+	Status          string  `json:"status"` // "success", "failed", "pending"
+	AmountSats      int64   `json:"amount_sats"`
+	Message         string  `json:"message"`
 	TransactionHash *string `json:"transaction_hash,omitempty"`
 }
 
@@ -104,8 +104,8 @@ type PaymentResult struct {
 type NodeBalance struct {
 	TotalBalanceSats     int64  `json:"total_balance_sats"`
 	AvailableBalanceSats int64  `json:"available_balance_sats"`
-	NodeID              string `json:"node_id"`
-	Status              string `json:"status"`
+	NodeID               string `json:"node_id"`
+	Status               string `json:"status"`
 }
 
 // TicketPurchaseRequest represents a ticket purchase request
@@ -153,6 +153,14 @@ type CreateUserRequest struct {
 // LoginRequest represents a login request
 type LoginRequest struct {
 	Email string `json:"email"`
+}
+
+// PurchaseTicketRequest represents a request to purchase a ticket
+type PurchaseTicketRequest struct {
+	EventID    int    `json:"event_id"`
+	UserEmail  string `json:"user_email"`
+	UserName   string `json:"user_name"`
+	UMAAddress string `json:"uma_address"`
 }
 
 // AuthResponse represents an authentication response

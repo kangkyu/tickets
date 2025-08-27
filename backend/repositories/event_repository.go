@@ -40,7 +40,7 @@ func (r *eventRepository) GetByID(id int) (*models.Event, error) {
 	err := r.db.Get(event, query, id)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, nil
+			return nil, err // Return the sql.ErrNoRows error instead of nil
 		}
 		return nil, err
 	}
@@ -63,7 +63,6 @@ func (r *eventRepository) GetByIDWithUMAInvoice(id int) (*models.Event, error) {
 	umaInvoice, err := r.umaRepo.GetByEventID(id)
 	if err != nil {
 		// Log error but don't fail the request - event will be returned without UMA invoice data
-		// TODO: Add proper logging here to debug UMA invoice loading issues
 		fmt.Printf("ERROR: Failed to fetch UMA invoice for event %d: %v\n", id, err)
 	} else if umaInvoice != nil {
 		event.UMARequestInvoice = umaInvoice

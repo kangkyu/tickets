@@ -225,7 +225,7 @@ func (h *TicketHandlers) HandlePurchaseTicket(w http.ResponseWriter, r *http.Req
 	if event.PriceSats > 0 && event.UMARequestInvoice != nil {
 		response["uma_request"] = map[string]interface{}{
 			"invoice_id":   event.UMARequestInvoice.InvoiceID,
-			"bolt11":       event.UMARequestInvoice.Bolt11,     // UMA Request uses Lightning under the hood
+			"bolt11":       event.UMARequestInvoice.Bolt11, // UMA Request uses Lightning under the hood
 			"amount_sats":  event.UMARequestInvoice.AmountSats,
 			"payment_hash": event.UMARequestInvoice.PaymentHash,
 			"uma_address":  event.UMARequestInvoice.UMAAddress,

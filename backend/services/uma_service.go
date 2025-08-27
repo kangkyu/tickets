@@ -198,8 +198,8 @@ func (s *LightsparkUMAService) GetNodeBalance() (*models.NodeBalance, error) {
 		return &models.NodeBalance{
 			TotalBalanceSats:     50000, // 50k sats
 			AvailableBalanceSats: 45000, // 45k available
-			NodeID:              "mock-node-id",
-			Status:              "ready",
+			NodeID:               "mock-node-id",
+			Status:               "ready",
 		}, nil
 	}
 
@@ -211,8 +211,8 @@ func (s *LightsparkUMAService) GetNodeBalance() (*models.NodeBalance, error) {
 	return &models.NodeBalance{
 		TotalBalanceSats:     0, // Will be updated with real API call
 		AvailableBalanceSats: 0, // Will be updated with real API call
-		NodeID:              s.nodeID,
-		Status:              "ready", // Assume ready if credentials are set
+		NodeID:               s.nodeID,
+		Status:               "ready", // Assume ready if credentials are set
 	}, nil
 }
 
@@ -308,12 +308,16 @@ func (s *LightsparkUMAService) createOneTimeInvoice(amountSats int64, descriptio
 		"description", description,
 		"node_id", s.nodeID)
 
+	s.logger.Info("Creating Lightspark testnet invoice via SDK",
+		"node_id", s.nodeID)
+
 	// Use the official SDK's CreateTestModeInvoice function
+	// Note: This function doesn't require context - it's handled internally by the SDK
 	bolt11, err := s.client.CreateTestModeInvoice(
-		s.nodeID,
-		amountMsats,
-		&description,
-		nil, // invoice type - nil for default
+		s.nodeID,     // localNodeId: the id of the node that will pay the invoice
+		amountMsats,  // amountMsats: the amount of the invoice in millisatoshis
+		&description, // memo: the memo of the invoice
+		nil,          // invoiceType: the type of the invoice (nil for default)
 	)
 	if err != nil {
 		s.logger.Error("Lightspark CreateTestModeInvoice failed", "error", err)
