@@ -64,6 +64,21 @@ func NewServer(db *sqlx.DB, logger *slog.Logger, config *config.Config) *Server 
 	return s
 }
 
+// SetUMAService allows setting a custom UMA service (useful for testing)
+func (s *Server) SetUMAService(umaService services.UMAService) {
+	s.umaService = umaService
+	// Re-initialize handlers with new service
+	s.initializeHandlers()
+	// Re-setup routes since handlers changed
+	s.router = mux.NewRouter()
+	s.setupRoutes()
+}
+
+// Router returns the router (useful for testing)
+func (s *Server) Router() *mux.Router {
+	return s.router
+}
+
 func (s *Server) setupRoutes() {
 	// Add CORS middleware to main router (covers all endpoints)
 	s.router.Use(s.corsMiddleware)

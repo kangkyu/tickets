@@ -1,0 +1,105 @@
+name: Backend Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths: [ 'backend/**' ]
+  pull_request:
+    branches: [ main ]
+    paths: [ 'backend/**' ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:13
+        env:
+          POSTGRES_PASSWORD: password
+          POSTGRES_USER: postgres
+          POSTGRES_DB: tickets_uma_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.22'
+
+    - name: Cache Go modules
+      uses: actions/cache@v3
+      with:
+        path: ~/go/pkg/mod
+        key: ${{ runner.os }}-go-${{ hashFiles('backend/go.sum') }}
+        restore-keys: |
+          ${{ runner.os }}-go-
+
+    - name: Install dependencies
+      working-directory: backend
+      run: go mod download
+
+    - name: Wait for PostgreSQL
+      run: |
+        until pg_isready -h localhost -p 5432 -U postgres; do
+          echo "Waiting for PostgreSQL..."
+          sleep 2
+        done
+
+    - name: Set up test database
+      working-directory: backend
+      run: |
+        PGPASSWORD=password psql -h localhost -U postgres -d tickets_uma_test -f db/schema.sql
+
+    - name: Run unit tests
+      working-directory: backend
+      run: go test -v -short ./apphandlers/ ./services/
+
+    - name: Run integration tests
+      working-directory: backend
+      env:
+        TEST_DB_URL: postgres://postgres:password@localhost:5432/tickets_uma_test?sslmode=disable
+      run: go test -v -timeout 30s .
+
+    - name: Run repository tests
+      working-directory: backend
+      env:
+        TEST_DB_URL: postgres://postgres:password@localhost:5432/tickets_uma_test?sslmode=disable
+      run: go test -v ./repositories/
+
+    - name: Generate coverage report
+      working-directory: backend
+      run: |
+        go test -coverprofile=coverage.out -covermode=atomic ./...
+        go tool cover -html=coverage.out -o coverage.html
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: backend/coverage.out
+        flags: backend
+        name: backend-coverage
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.22'
+
+    - name: golangci-lint
+      uses: golangci/golangci-lint-action@v3
+      with:
+        version: latest
+        working-directory: backend

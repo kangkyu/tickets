@@ -155,6 +155,14 @@ type LoginRequest struct {
 	Email string `json:"email"`
 }
 
+// PurchaseTicketRequest represents a request to purchase a ticket
+type PurchaseTicketRequest struct {
+	EventID    int    `json:"event_id"`
+	UserEmail  string `json:"user_email"`
+	UserName   string `json:"user_name"`
+	UMAAddress string `json:"uma_address"`
+}
+
 // AuthResponse represents an authentication response
 type AuthResponse struct {
 	Token string `json:"token"`
