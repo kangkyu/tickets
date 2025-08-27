@@ -287,6 +287,8 @@ func TestPaymentRepository(t *testing.T) {
 	defer db.Close()
 
 	userRepo := NewUserRepository(db)
+	eventRepo := NewEventRepository(db)
+	ticketRepo := NewTicketRepository(db)
 	paymentRepo := NewPaymentRepository(db)
 
 	// Create test user
@@ -299,9 +301,39 @@ func TestPaymentRepository(t *testing.T) {
 		t.Fatal("Failed to create test user:", err)
 	}
 
+	// Create test event
+	event := &models.Event{
+		Title:       "Payment Test Event",
+		Description: "Event for testing payments",
+		StartTime:   time.Now().Add(24 * time.Hour),
+		EndTime:     time.Now().Add(26 * time.Hour),
+		Capacity:    100,
+		PriceSats:   5000,
+		StreamURL:   "https://example.com/stream",
+		IsActive:    true,
+	}
+	err = eventRepo.Create(event)
+	if err != nil {
+		t.Fatal("Failed to create test event:", err)
+	}
+
+	// Create test ticket
+	ticket := &models.Ticket{
+		EventID:       event.ID,
+		UserID:        user.ID,
+		TicketCode:    "PAYMENT-TEST-123",
+		PaymentStatus: "pending",
+		InvoiceID:     "test-invoice-123",
+		UMAAddress:    "$test@example.com",
+	}
+	err = ticketRepo.Create(ticket)
+	if err != nil {
+		t.Fatal("Failed to create test ticket:", err)
+	}
+
 	// Create test payment
 	payment := &models.Payment{
-		TicketID:  1, // Will be set properly in real usage
+		TicketID:  ticket.ID, // Now properly references existing ticket
 		InvoiceID: "test-invoice-123",
 		Amount:    5000,
 		Status:    "pending",

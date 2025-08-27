@@ -40,7 +40,7 @@ func (r *eventRepository) GetByID(id int) (*models.Event, error) {
 	err := r.db.Get(event, query, id)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, nil
+			return nil, err // Return the sql.ErrNoRows error instead of nil
 		}
 		return nil, err
 	}

@@ -15,7 +15,7 @@ func TestBasicStructures(t *testing.T) {
 		Email: "test@example.com",
 		Name:  "Test User",
 	}
-	
+
 	if user.Email != "test@example.com" {
 		t.Errorf("Expected email test@example.com, got %s", user.Email)
 	}
@@ -27,14 +27,14 @@ func TestBasicStructures(t *testing.T) {
 		UserName:   "Test Buyer",
 		UMAAddress: "$buyer@example.com",
 	}
-	
+
 	if purchaseReq.EventID != 1 {
 		t.Errorf("Expected EventID 1, got %d", purchaseReq.EventID)
 	}
 
 	// Test UMA service interface exists
 	var _ services.UMAService = (*services.LightsparkUMAService)(nil)
-	
+
 	t.Log("All basic structures work correctly")
 }
 
@@ -42,17 +42,17 @@ func TestBasicStructures(t *testing.T) {
 func TestUMAServiceCreation(t *testing.T) {
 	// This should not panic
 	service := services.NewLightsparkUMAService("", "", "", "", nil)
-	
+
 	if service == nil {
 		t.Error("Expected service to be created")
 	}
-	
+
 	// Test validation works
 	err := service.ValidateUMAAddress("$test@example.com")
 	if err != nil {
 		t.Errorf("Expected valid UMA address to pass validation, got error: %v", err)
 	}
-	
+
 	err = service.ValidateUMAAddress("invalid")
 	if err == nil {
 		t.Error("Expected invalid UMA address to fail validation")

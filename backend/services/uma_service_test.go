@@ -231,7 +231,7 @@ func TestHelperMethods(t *testing.T) {
 	// Test generateInvoiceID
 	id1 := service.generateInvoiceID()
 	id2 := service.generateInvoiceID()
-	
+
 	if id1 == id2 {
 		t.Error("Expected different invoice IDs")
 	}
@@ -243,7 +243,7 @@ func TestHelperMethods(t *testing.T) {
 	// Test generatePaymentHash
 	hash1 := service.generatePaymentHash("$user@example.com", 1000)
 	hash2 := service.generatePaymentHash("$user@example.com", 2000)
-	
+
 	if hash1 == hash2 {
 		t.Error("Expected different payment hashes for different amounts")
 	}
@@ -256,7 +256,7 @@ func TestHelperMethods(t *testing.T) {
 	paymentID1 := service.generatePaymentID()
 	time.Sleep(time.Millisecond) // Ensure different timestamp
 	paymentID2 := service.generatePaymentID()
-	
+
 	if paymentID1 == paymentID2 {
 		t.Error("Expected different payment IDs")
 	}
@@ -264,7 +264,7 @@ func TestHelperMethods(t *testing.T) {
 	// Test generateMetadataHash
 	hash1 = service.generateMetadataHash("description1")
 	hash2 = service.generateMetadataHash("description2")
-	
+
 	if hash1 == hash2 {
 		t.Error("Expected different metadata hashes for different descriptions")
 	}
@@ -272,7 +272,7 @@ func TestHelperMethods(t *testing.T) {
 	// Test generateReceiverHash
 	hash1 = service.generateReceiverHash("$user1@example.com")
 	hash2 = service.generateReceiverHash("$user2@example.com")
-	
+
 	if hash1 == hash2 {
 		t.Error("Expected different receiver hashes for different addresses")
 	}
@@ -341,7 +341,7 @@ func TestEdgeCases(t *testing.T) {
 
 	// Test with long description
 	longDescription := "A very long description that exceeds normal limits to test how the system handles large input strings without breaking or causing issues in the invoice creation process."
-	
+
 	invoice, err = service.CreateTicketInvoice("$test@example.com", 1000, longDescription)
 	if err != nil {
 		t.Fatal("Failed to create invoice with long description:", err)

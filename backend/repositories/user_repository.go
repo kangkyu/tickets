@@ -33,7 +33,7 @@ func (r *userRepository) GetByID(id int) (*models.User, error) {
 	err := r.db.Get(user, query, id)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, nil
+			return nil, err // Return the sql.ErrNoRows error instead of nil
 		}
 		return nil, err
 	}
