@@ -4,7 +4,6 @@ import Layout from './components/Layout'
 import EventList from './components/EventList'
 import EventDetails from './components/EventDetails'
 import TicketPurchase from './components/TicketPurchase'
-import PaymentStatus from './components/PaymentStatus'
 import TicketList from './components/TicketList'
 import Login from './components/Login'
 import ProtectedRoute from './components/ProtectedRoute'
@@ -30,11 +29,6 @@ function App() {
             <Route path="/events/:eventId/purchase" element={
               <ProtectedRoute>
                 <TicketPurchase />
-              </ProtectedRoute>
-            } />
-            <Route path="/tickets/:ticketId/payment" element={
-              <ProtectedRoute>
-                <PaymentStatus />
               </ProtectedRoute>
             } />
             <Route path="/tickets" element={

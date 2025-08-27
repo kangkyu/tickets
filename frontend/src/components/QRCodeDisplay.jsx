@@ -5,18 +5,13 @@ const QRCodeDisplay = ({ ticket, onClose }) => {
   const [isDownloading, setIsDownloading] = useState(false)
   const [isEmailing, setIsEmailing] = useState(false)
 
-  // Generate QR code data (this would typically come from the backend)
-  const qrData = JSON.stringify({
-    ticket_id: ticket.id,
-    ticket_code: ticket.ticket_code,
-    event_id: ticket.event?.id,
-    user_id: ticket.user_id
-  })
+  // Generate QR code data - just the ticket code for scanners
+  const qrData = ticket.ticket_code
 
   // For now, we'll use a placeholder QR code
   // In production, you'd want to use a proper QR code library like qrcode.react
   const generateQRCode = () => {
-    // This is a simple placeholder - replace with actual QR code generation
+    // This generates a QR code with just the ticket code for easy scanning
     return `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrData)}`
   }
 
@@ -94,6 +89,11 @@ UMA Tickets Team
 
         {/* QR Code */}
         <div className="text-center mb-6">
+          <div className="mb-2">
+            <p className="text-sm text-gray-600">
+              This QR code contains just the ticket code for easy scanning
+            </p>
+          </div>
           <div className="inline-block p-4 bg-white border-2 border-gray-200 rounded-lg">
             <img
               src={generateQRCode()}
@@ -102,7 +102,7 @@ UMA Tickets Team
             />
           </div>
           <p className="text-xs text-gray-500 mt-2">
-            Scan this QR code at the event entrance
+            QR code contains ticket code: {ticket.ticket_code}
           </p>
         </div>
 

@@ -1,20 +1,25 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { Calendar, MapPin, CheckCircle, Clock, XCircle, QrCode, Download, Mail } from 'lucide-react'
 import { useUserTickets } from '../hooks/useTickets'
 import { formatEventDate, formatPrice, formatSatsToUSD } from '../utils/formatters'
 import QRCodeDisplay from './QRCodeDisplay'
 import { useAuth } from '../contexts/AuthContext'
+import config from '../config/api'
 
 const TicketList = () => {
   const { user, isAuthenticated } = useAuth()
-  const { data: response, isLoading, error } = useUserTickets(isAuthenticated && user?.id ? user.id : null)
+  const location = useLocation()
+  const { data: response, isLoading, error, refetch } = useUserTickets(isAuthenticated && user?.id ? user.id : null)
   
   // Extract tickets from the response structure
   const tickets = response?.data || response || []
   
   const [selectedStatus, setSelectedStatus] = useState('all')
   const [selectedTicket, setSelectedTicket] = useState(null)
+
+  // Get success message from navigation state
+  const { successMessage } = location.state || {}
 
   // Show loading or redirect if not authenticated
   if (!isAuthenticated) {
@@ -147,6 +152,21 @@ const TicketList = () => {
         <h1 className="text-3xl font-bold text-gray-900 mb-4">My Tickets</h1>
         <p className="text-gray-600">View and manage your event tickets</p>
       </div>
+
+      {/* Success Message */}
+      {successMessage && (
+        <div className="bg-green-50 border border-green-200 rounded-lg p-4 max-w-2xl mx-auto">
+          <div className="flex items-center gap-3">
+            <CheckCircle className="w-6 h-6 text-green-600" />
+            <div className="text-left">
+              <p className="text-green-800 font-medium">{successMessage}</p>
+              <p className="text-green-700 text-sm mt-1">
+                Your ticket information is displayed below
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Status Filter */}
       <div className="flex justify-center">
@@ -287,12 +307,34 @@ const TicketList = () => {
                     )}
                     
                     {ticket.payment_status === 'pending' && (
-                      <Link
-                        to={`/tickets/${ticket.id}/payment`}
-                        className="w-full btn-uma"
-                      >
-                        Complete Payment
-                      </Link>
+                      <div className="w-full p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                        <div className="text-center">
+                          <Clock className="w-5 h-5 text-yellow-600 mx-auto mb-2" />
+                          <p className="text-sm text-yellow-800 font-medium">Payment Pending</p>
+                          <p className="text-xs text-yellow-700 mt-1">
+                            Complete your Lightning Network payment to confirm your ticket
+                          </p>
+                          {ticket.payment && (
+                            <div className="mt-2 text-xs text-yellow-700 space-y-1">
+                              <div className="flex justify-between">
+                                <span>Amount:</span>
+                                <span className="font-medium">{formatPrice(ticket.payment.amount_sats)}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span>Invoice ID:</span>
+                                <span className="font-mono">{ticket.payment.invoice_id}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span>Status:</span>
+                                <span className="font-medium">{ticket.payment.status}</span>
+                              </div>
+                            </div>
+                          )}
+                          <div className="mt-3 text-xs text-yellow-600">
+                            💡 Payment status will update automatically when payment is completed
+                          </div>
+                        </div>
+                      </div>
                     )}
                     
                     {ticket.payment_status === 'expired' && (

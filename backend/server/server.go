@@ -123,7 +123,7 @@ func (s *Server) setupRoutes() {
 	protected.HandleFunc("/users/{id:[0-9]+}", s.userHandlers.HandleDeleteUser).Methods("DELETE", "OPTIONS")
 
 	// Protected ticket routes
-	protected.HandleFunc("/tickets/user/{user_id:[0-9]+}", s.ticketHandlers.HandleGetUserTickets).Methods("GET", "OPTIONS")
+	protected.HandleFunc("/users/{user_id:[0-9]+}/tickets", s.ticketHandlers.HandleGetUserTickets).Methods("GET", "OPTIONS")
 
 	// Protected payment routes
 	protected.HandleFunc("/payments/{invoice_id}/status", s.paymentHandlers.HandlePaymentStatus).Methods("GET", "OPTIONS")

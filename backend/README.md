@@ -142,7 +142,7 @@ ADMIN_EMAILS=admin@yourcompany.com
 - `DELETE /api/users/{id}` - Delete user
 
 #### Tickets
-- `GET /api/tickets/user/{user_id}` - Get user's tickets
+- `GET /api/users/{user_id}/tickets` - Get user's tickets
 
 #### Payments
 - `GET /api/payments/{invoice_id}/status` - Check payment status
