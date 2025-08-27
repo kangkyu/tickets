@@ -24,7 +24,7 @@ func LoadConfig() *Config {
 		LightsparkClientID:     getEnv("LIGHTSPARK_CLIENT_ID", ""),
 		LightsparkClientSecret: getEnv("LIGHTSPARK_CLIENT_SECRET", ""),
 		LightsparkNodeID:       getEnv("LIGHTSPARK_NODE_ID", ""),
-		LightsparkNodePassword: getEnv("LIGHTSPARK_TEST_NODE_PASSWORD", ""),
+		LightsparkNodePassword: getEnv("LIGHTSPARK_NODE_PASSWORD", ""),
 		JWTSecret:              getEnv("JWT_SECRET", "your-secret-key-change-in-production"),
 		AdminEmails:            strings.Split(getEnv("ADMIN_EMAILS", "admin@example.com"), ","),
 		Domain:                 getEnv("DOMAIN", "localhost"),
