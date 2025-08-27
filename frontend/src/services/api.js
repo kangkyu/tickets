@@ -194,7 +194,7 @@ export const ticketsAPI = {
 
   // Get user's tickets
   getUserTickets: async (userId) => {
-    return api.get(`/api/tickets/user/${userId}`)
+    return api.get(`/api/users/${userId}/tickets`)
   },
 
   // Validate a ticket

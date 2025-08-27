@@ -78,7 +78,7 @@ func (h *TicketHandlers) HandlePurchaseTicket(w http.ResponseWriter, r *http.Req
 	}
 
 	// Check if event has a UMA Request invoice (business-created)
-	// Free events (price = 0) don't need UMA invoices since tickets are free
+	// Free events (price = 0) don't need UMA invoices since tickets are automatically paid
 	// Paid events (price > 0) require UMA invoices for payment processing
 	if event.PriceSats > 0 && event.UMARequestInvoice == nil {
 		h.logger.Error("Paid event missing UMA Request invoice",
@@ -89,11 +89,11 @@ func (h *TicketHandlers) HandlePurchaseTicket(w http.ResponseWriter, r *http.Req
 	}
 
 	if event.PriceSats == 0 {
-		h.logger.Info("Free event - no payment required",
+		h.logger.Info("Free event - tickets automatically paid",
 			"event_id", req.EventID,
 			"price_sats", event.PriceSats)
-		// For free events, we can proceed without UMA invoice
-		// The ticket will be created with payment_status = 'free'
+		// For free events, tickets are automatically paid (no payment processing needed)
+		// The ticket will be created with payment_status = 'paid'
 	} else if event.UMARequestInvoice == nil {
 		h.logger.Error("Paid event missing UMA Request invoice",
 			"event_id", req.EventID,
@@ -127,7 +127,7 @@ func (h *TicketHandlers) HandlePurchaseTicket(w http.ResponseWriter, r *http.Req
 	var payment *models.Payment
 
 	if event.PriceSats == 0 {
-		// Free event - create ticket with 'free' payment status
+		// Free event - create ticket with 'paid' payment status (since it's free)
 		h.logger.Info("Creating free ticket for free event",
 			"event_id", req.EventID,
 			"price_sats", event.PriceSats)
@@ -136,7 +136,7 @@ func (h *TicketHandlers) HandlePurchaseTicket(w http.ResponseWriter, r *http.Req
 			EventID:       req.EventID,
 			UserID:        req.UserID,
 			TicketCode:    ticketCode,
-			PaymentStatus: "free", // Free tickets don't need payment
+			PaymentStatus: "paid", // Free tickets are automatically paid
 			InvoiceID:     "",     // No invoice for free tickets
 			UMAAddress:    req.UMAAddress,
 		}
@@ -272,14 +272,6 @@ func (h *TicketHandlers) HandleTicketStatus(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// Get payment information
-	payment, err := h.paymentRepo.GetByTicketID(ticketID)
-	if err != nil {
-		h.logger.Error("Failed to fetch payment", "ticket_id", ticketID, "error", err)
-		middleware.WriteError(w, http.StatusInternalServerError, "Failed to fetch payment")
-		return
-	}
-
 	// Get event information
 	event, err := h.eventRepo.GetByID(ticket.EventID)
 	if err != nil {
@@ -296,15 +288,44 @@ func (h *TicketHandlers) HandleTicketStatus(w http.ResponseWriter, r *http.Reque
 			"created_at":     ticket.CreatedAt,
 			"paid_at":        ticket.PaidAt,
 		},
-		"payment": map[string]interface{}{
-			"status":      payment.Status,
-			"amount_sats": payment.Amount,
-			"invoice_id":  payment.InvoiceID,
-		},
 		"event": map[string]interface{}{
 			"title":      event.Title,
 			"start_time": event.StartTime,
 		},
+	}
+
+	// Only fetch payment information for tickets that actually have payments
+	if ticket.PaymentStatus == "pending" || ticket.PaymentStatus == "paid" {
+		// For free tickets (price 0), we don't need to fetch payment records
+		// For paid tickets, fetch the payment record
+		if event.PriceSats > 0 {
+			payment, err := h.paymentRepo.GetByTicketID(ticketID)
+			if err != nil {
+				h.logger.Error("Failed to fetch payment", "ticket_id", ticketID, "error", err)
+				middleware.WriteError(w, http.StatusInternalServerError, "Failed to fetch payment")
+				return
+			}
+
+			statusResponse["payment"] = map[string]interface{}{
+				"status":      payment.Status,
+				"amount_sats": payment.Amount,
+				"invoice_id":  payment.InvoiceID,
+			}
+		} else {
+			// Free ticket - no payment record needed
+			statusResponse["payment"] = map[string]interface{}{
+				"status":      "paid",
+				"amount_sats": 0,
+				"invoice_id":  nil,
+			}
+		}
+	} else {
+		// For other statuses (cancelled, etc.)
+		statusResponse["payment"] = map[string]interface{}{
+			"status":      ticket.PaymentStatus,
+			"amount_sats": 0,
+			"invoice_id":  nil,
+		}
 	}
 
 	middleware.WriteJSON(w, http.StatusOK, models.SuccessResponse{

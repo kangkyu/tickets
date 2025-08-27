@@ -115,7 +115,7 @@ The frontend connects to a backend API with the following endpoints:
 #### Tickets API
 - `POST /api/tickets/purchase` - Purchase ticket
 - `GET /api/tickets/:id/status` - Check ticket status
-- `GET /api/tickets/user/:user_id` - Get user tickets
+- `GET /api/users/:user_id/tickets` - Get user tickets
 - `POST /api/tickets/validate` - Validate ticket
 
 #### Payments API
