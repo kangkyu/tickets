@@ -244,7 +244,6 @@ func (h *EventHandlers) HandleCreateEvent(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-
 	h.logger.Info("Event created successfully", "event_id", event.ID)
 
 	middleware.WriteJSON(w, http.StatusCreated, models.SuccessResponse{
@@ -308,7 +307,6 @@ func (h *EventHandlers) HandleUpdateEvent(w http.ResponseWriter, r *http.Request
 	if req.IsActive != nil {
 		event.IsActive = *req.IsActive
 	}
-
 
 	// Note: UMA Request invoices are only needed for paid events (price > 0)
 	// Free events (price = 0) don't need UMA invoices since tickets are free
@@ -388,7 +386,6 @@ func (h *EventHandlers) HandleGetNodeBalance(w http.ResponseWriter, r *http.Requ
 		Data:    balance,
 	})
 }
-
 
 // HandleCreateEventUMAInvoice creates a UMA Request invoice for a specific event (admin only)
 func (h *EventHandlers) HandleCreateEventUMAInvoice(w http.ResponseWriter, r *http.Request) {

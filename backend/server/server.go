@@ -125,7 +125,7 @@ func (s *Server) setupRoutes() {
 
 	// Admin UMA routes
 	admin.HandleFunc("/events/{id:[0-9]+}/uma-invoice", s.eventHandlers.HandleCreateEventUMAInvoice).Methods("POST", "OPTIONS")
-	
+
 	// Admin node balance route
 	admin.HandleFunc("/node/balance", s.eventHandlers.HandleGetNodeBalance).Methods("GET", "OPTIONS")
 

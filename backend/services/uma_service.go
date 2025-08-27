@@ -198,8 +198,8 @@ func (s *LightsparkUMAService) GetNodeBalance() (*models.NodeBalance, error) {
 		return &models.NodeBalance{
 			TotalBalanceSats:     50000, // 50k sats
 			AvailableBalanceSats: 45000, // 45k available
-			NodeID:              "mock-node-id",
-			Status:              "ready",
+			NodeID:               "mock-node-id",
+			Status:               "ready",
 		}, nil
 	}
 
@@ -211,8 +211,8 @@ func (s *LightsparkUMAService) GetNodeBalance() (*models.NodeBalance, error) {
 	return &models.NodeBalance{
 		TotalBalanceSats:     0, // Will be updated with real API call
 		AvailableBalanceSats: 0, // Will be updated with real API call
-		NodeID:              s.nodeID,
-		Status:              "ready", // Assume ready if credentials are set
+		NodeID:               s.nodeID,
+		Status:               "ready", // Assume ready if credentials are set
 	}, nil
 }
 
