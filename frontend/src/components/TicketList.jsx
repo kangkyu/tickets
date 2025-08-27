@@ -17,7 +17,6 @@ const TicketList = () => {
   
   const [selectedStatus, setSelectedStatus] = useState('all')
   const [selectedTicket, setSelectedTicket] = useState(null)
-  const [refreshingTickets, setRefreshingTickets] = useState(new Set())
 
   // Get success message from navigation state
   const { successMessage } = location.state || {}
@@ -144,39 +143,6 @@ const TicketList = () => {
 
   const handleCloseQRCode = () => {
     setSelectedTicket(null)
-  }
-
-  const handleRefreshTicketStatus = async (ticketId) => {
-    try {
-      // Add ticket to refreshing set
-      setRefreshingTickets(prev => new Set(prev).add(ticketId))
-      
-      // Use the existing ticket status endpoint
-      const response = await fetch(`${config.apiUrl}/api/tickets/${ticketId}/status`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
-          'Content-Type': 'application/json'
-        }
-      })
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
-      }
-
-      // Refetch all tickets to get updated status
-      await refetch()
-      
-    } catch (error) {
-      console.error('Error refreshing ticket status:', error)
-      // Don't show alert, just log the error
-    } finally {
-      // Remove ticket from refreshing set
-      setRefreshingTickets(prev => {
-        const newSet = new Set(prev)
-        newSet.delete(ticketId)
-        return newSet
-      })
-    }
   }
 
   return (
@@ -364,14 +330,8 @@ const TicketList = () => {
                               </div>
                             </div>
                           )}
-                          <div className="mt-3">
-                            <button
-                              onClick={() => handleRefreshTicketStatus(ticket.id)}
-                              disabled={refreshingTickets.has(ticket.id)}
-                              className="btn-primary text-xs px-3 py-1 disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                              {refreshingTickets.has(ticket.id) ? '🔄 Refreshing...' : '🔄 Refresh Status'}
-                            </button>
+                          <div className="mt-3 text-xs text-yellow-600">
+                            💡 Payment status will update automatically when payment is completed
                           </div>
                         </div>
                       </div>
