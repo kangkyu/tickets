@@ -88,6 +88,12 @@ variable "lightspark_node_password" {
   sensitive   = true
 }
 
+variable "webhook_signing_key" {
+  description = "Lightspark webhook signing key"
+  type        = string
+  sensitive   = true
+}
+
 variable "main_branch_name" {
   description = "Main branch name (e.g., master, main)"
   type        = string
@@ -410,6 +416,10 @@ resource "aws_ecs_task_definition" "backend" {
         {
           name  = "JWT_SECRET"
           value = random_password.jwt_secret.result
+        },
+        {
+          name  = "LIGHTSPARK_WEBHOOK_SIGNING_KEY"
+          value = var.webhook_signing_key
         }
       ]
 

@@ -8,12 +8,13 @@ import (
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/jmoiron/sqlx"
+	"github.com/lightsparkdev/go-sdk/services"
 
 	"tickets-by-uma/apphandlers"
 	"tickets-by-uma/config"
 	"tickets-by-uma/middleware"
 	"tickets-by-uma/repositories"
-	"tickets-by-uma/services"
+	uma_services "tickets-by-uma/services"
 )
 
 type Server struct {
@@ -25,7 +26,8 @@ type Server struct {
 	ticketRepo      repositories.TicketRepository
 	paymentRepo     repositories.PaymentRepository
 	umaRepo         repositories.UMARequestInvoiceRepository
-	umaService      services.UMAService
+	umaService      uma_services.UMAService
+	lightsparkClient *services.LightsparkClient
 	router          *mux.Router
 	userHandlers    *apphandlers.UserHandlers
 	eventHandlers   *apphandlers.EventHandlers
@@ -48,8 +50,11 @@ func NewServer(db *sqlx.DB, logger *slog.Logger, config *config.Config) *Server 
 	s.paymentRepo = repositories.NewPaymentRepository(db)
 	s.umaRepo = repositories.NewUMARequestInvoiceRepository(db)
 
+	// Initialize Lightspark client
+	s.lightsparkClient = services.NewLightsparkClient(config.LightsparkClientID, config.LightsparkClientSecret, nil)
+
 	// Initialize UMA service
-	s.umaService = services.NewLightsparkUMAService(
+	s.umaService = uma_services.NewLightsparkUMAService(
 		config.LightsparkClientID,
 		config.LightsparkClientSecret,
 		config.LightsparkNodeID,
@@ -65,7 +70,7 @@ func NewServer(db *sqlx.DB, logger *slog.Logger, config *config.Config) *Server 
 }
 
 // SetUMAService allows setting a custom UMA service (useful for testing)
-func (s *Server) SetUMAService(umaService services.UMAService) {
+func (s *Server) SetUMAService(umaService uma_services.UMAService) {
 	s.umaService = umaService
 	// Re-initialize handlers with new service
 	s.initializeHandlers()
@@ -154,7 +159,7 @@ func (s *Server) initializeHandlers() {
 	s.userHandlers = apphandlers.NewUserHandlers(s.userRepo, s.logger, s.config.JWTSecret)
 	s.eventHandlers = apphandlers.NewEventHandlers(s.eventRepo, s.paymentRepo, s.ticketRepo, s.umaService, s.umaRepo, s.logger, s.config)
 	s.ticketHandlers = apphandlers.NewTicketHandlers(s.ticketRepo, s.eventRepo, s.paymentRepo, s.umaService, s.logger)
-	s.paymentHandlers = apphandlers.NewPaymentHandlers(s.paymentRepo, s.ticketRepo, s.umaService, s.logger)
+	s.paymentHandlers = apphandlers.NewPaymentHandlers(s.paymentRepo, s.ticketRepo, s.umaService, s.lightsparkClient, s.logger)
 }
 
 // CORS middleware

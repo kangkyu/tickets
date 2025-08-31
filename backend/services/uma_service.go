@@ -206,8 +206,7 @@ func (s *LightsparkUMAService) GetNodeBalance() (*models.NodeBalance, error) {
 	s.logger.Info("Fetching Lightspark node balance", "node_id", s.nodeID)
 
 	// Use Lightspark SDK to get node information
-	// Note: This is a simplified version - actual implementation would need proper API calls
-	// For now, return simulated data based on real node
+	// TODO: returning simulated data based on real node -- need proper API calls
 	return &models.NodeBalance{
 		TotalBalanceSats:     0, // Will be updated with real API call
 		AvailableBalanceSats: 0, // Will be updated with real API call

@@ -1,13 +1,18 @@
 package apphandlers
 
 import (
-	"encoding/json"
 	"fmt"
+	"io"
+	"log"
 	"log/slog"
 	"net/http"
+	"os"
 	"strconv"
 
 	"github.com/gorilla/mux"
+	"github.com/lightsparkdev/go-sdk/objects"
+	uma_services "github.com/lightsparkdev/go-sdk/services"
+	"github.com/lightsparkdev/go-sdk/webhooks"
 
 	"tickets-by-uma/middleware"
 	"tickets-by-uma/models"
@@ -19,6 +24,7 @@ type PaymentHandlers struct {
 	paymentRepo repositories.PaymentRepository
 	ticketRepo  repositories.TicketRepository
 	umaService  services.UMAService
+	client      *uma_services.LightsparkClient
 	logger      *slog.Logger
 }
 
@@ -26,20 +32,23 @@ func NewPaymentHandlers(
 	paymentRepo repositories.PaymentRepository,
 	ticketRepo repositories.TicketRepository,
 	umaService services.UMAService,
+	client *uma_services.LightsparkClient,
 	logger *slog.Logger,
 ) *PaymentHandlers {
 	return &PaymentHandlers{
 		paymentRepo: paymentRepo,
 		ticketRepo:  ticketRepo,
 		umaService:  umaService,
+		client:      client,
 		logger:      logger,
 	}
 }
 
 // HandlePaymentWebhook processes Lightning payment webhooks
 func (h *PaymentHandlers) HandlePaymentWebhook(w http.ResponseWriter, r *http.Request) {
-	var webhookData map[string]interface{}
-	if err := json.NewDecoder(r.Body).Decode(&webhookData); err != nil {
+	signingKey := os.Getenv("LIGHTSPARK_WEBHOOK_SIGNING_KEY")
+	webhookData, err := io.ReadAll(r.Body)
+	if err != nil {
 		h.logger.Error("Failed to decode webhook data", "error", err)
 		middleware.WriteError(w, http.StatusBadRequest, "Invalid webhook data")
 		return
@@ -47,76 +56,100 @@ func (h *PaymentHandlers) HandlePaymentWebhook(w http.ResponseWriter, r *http.Re
 
 	h.logger.Info("Received payment webhook", "data", webhookData)
 
-	// Extract payment information from webhook
-	invoiceID, ok := webhookData["invoice_id"].(string)
-	if !ok {
-		h.logger.Error("Missing invoice_id in webhook")
-		middleware.WriteError(w, http.StatusBadRequest, "Missing invoice_id")
+	event, err := webhooks.VerifyAndParse(webhookData, r.Header.Get(webhooks.SIGNATURE_HEADER), signingKey)
+	if err != nil {
+		log.Printf("Unable to verify and parse data: %v", err)
+		http.Error(w, "Invalid webhook", http.StatusBadRequest)
+		return
+	}
+	if event.EventType == objects.WebhookEventTypePaymentFinished {
+		entityId := event.EntityId
+		h.handlePaymentFinished(entityId) //   TODO: Implement payment handling logic here
+	}
+
+	// Return success response
+	w.WriteHeader(http.StatusOK)
+
+	//middleware.WriteJSON(w, http.StatusOK, models.SuccessResponse{
+	//	Message: "Payment webhook processed successfully",
+	//	Data: map[string]interface{}{
+	//		"payment_id": payment.ID,
+	//		"status":     status,
+	//	},
+	//})
+}
+
+func (h *PaymentHandlers) handlePaymentFinished(entityID string) {
+	h.logger.Info("Processing payment finished event", "entity_id", entityID)
+
+	// Get the payment entity from Lightspark
+	entity, err := h.client.GetEntity(entityID)
+	if err != nil {
+		h.logger.Error("Failed to fetch entity from Lightspark", "entity_id", entityID, "error", err)
 		return
 	}
 
-	status, ok := webhookData["status"].(string)
-	if !ok {
-		h.logger.Error("Missing status in webhook")
-		middleware.WriteError(w, http.StatusBadRequest, "Missing status")
+	if entity == nil {
+		h.logger.Error("Entity not found", "entity_id", entityID)
 		return
 	}
 
-	paymentHash, _ := webhookData["payment_hash"].(string)
+	// Check if this is an outgoing payment and extract invoice_id
+	outgoingPayment, ok := (*entity).(*objects.OutgoingPayment)
+	if !ok {
+		h.logger.Warn("Expected OutgoingPayment but got different type", "entity_id", entityID, "type", fmt.Sprintf("%T", *entity))
+		return
+	}
 
-	h.logger.Info("Processing payment webhook",
+	// Get payment status and use entityID as the identifier
+	paymentStatus := outgoingPayment.GetStatus()
+
+	// Use entityID as our payment identifier since we don't have direct access to invoice fields
+	invoiceID := entityID
+
+	h.logger.Info("Processing outgoing payment",
 		"invoice_id", invoiceID,
-		"status", status,
-		"payment_hash", paymentHash)
+		"status", paymentStatus,
+		"amount", outgoingPayment.Amount)
 
 	// Get payment record by invoice ID
 	payment, err := h.paymentRepo.GetByInvoiceID(invoiceID)
 	if err != nil {
 		h.logger.Error("Failed to fetch payment", "invoice_id", invoiceID, "error", err)
-		middleware.WriteError(w, http.StatusInternalServerError, "Failed to fetch payment")
 		return
 	}
 
 	if payment == nil {
 		h.logger.Error("Payment not found", "invoice_id", invoiceID)
-		middleware.WriteError(w, http.StatusNotFound, "Payment not found")
 		return
 	}
+
+	status := "paid" // Payment finished means it was successful
 
 	// Update payment status
 	oldStatus := payment.Status
 	if err := h.paymentRepo.UpdateStatus(payment.ID, status); err != nil {
 		h.logger.Error("Failed to update payment status", "payment_id", payment.ID, "error", err)
-		middleware.WriteError(w, http.StatusInternalServerError, "Failed to update payment status")
 		return
 	}
 
 	// Update ticket payment status
 	if err := h.ticketRepo.UpdatePaymentStatus(payment.TicketID, status); err != nil {
 		h.logger.Error("Failed to update ticket payment status", "ticket_id", payment.TicketID, "error", err)
-		middleware.WriteError(w, http.StatusInternalServerError, "Failed to update ticket payment status")
 		return
 	}
 
 	// Process UMA callback
-	if err := h.umaService.HandleUMACallback(paymentHash, status); err != nil {
-		h.logger.Error("Failed to process UMA callback", "error", err)
+	if err := h.umaService.HandleUMACallback(invoiceID, status); err != nil {
+		h.logger.Error("Failed to process UMA callback", "invoice_id", invoiceID, "error", err)
 		// Don't fail the webhook for UMA callback errors
 	}
 
-	h.logger.Info("Payment webhook processed successfully",
+	h.logger.Info("Payment finished processed successfully",
 		"payment_id", payment.ID,
+		"invoice_id", invoiceID,
 		"old_status", oldStatus,
 		"new_status", status)
-
-	// Return success response
-	middleware.WriteJSON(w, http.StatusOK, models.SuccessResponse{
-		Message: "Payment webhook processed successfully",
-		Data: map[string]interface{}{
-			"payment_id": payment.ID,
-			"status":     status,
-		},
-	})
 }
 
 // HandlePaymentStatus checks the status of a payment by invoice ID
