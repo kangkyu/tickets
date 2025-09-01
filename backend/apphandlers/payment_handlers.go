@@ -64,7 +64,7 @@ func (h *PaymentHandlers) HandlePaymentWebhook(w http.ResponseWriter, r *http.Re
 	}
 	if event.EventType == objects.WebhookEventTypePaymentFinished {
 		entityId := event.EntityId
-		h.handlePaymentFinished(entityId) //   TODO: Implement payment handling logic here
+		h.handlePaymentFinished(entityId)
 	}
 
 	// Return success response
