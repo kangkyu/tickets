@@ -103,11 +103,22 @@ func (h *PaymentHandlers) handlePaymentFinished(entityID string) {
 
 	h.logger.Info("Processing payment entity", "entity_id", entityID, "type", fmt.Sprintf("%T", *entity))
 
-	// Get payment status and use entityID as the identifier
+	// Get payment status
 	paymentStatus := outgoingPayment.GetStatus()
 
-	// Use entityID as our payment identifier since we don't have direct access to invoice fields
-	invoiceID := entityID
+	// Extract invoice ID from the OutgoingPayment using GetEncodedPaymentRequest
+	var invoiceID string
+	if outgoingPayment.PaymentRequestData != nil {
+		// Cast to InvoiceData and get encoded payment request (bolt11)
+		if invoiceData, ok := (*outgoingPayment.PaymentRequestData).(*objects.InvoiceData); ok {
+			invoiceID = invoiceData.GetEncodedPaymentRequest()
+		}
+	}
+	
+	if invoiceID == "" {
+		h.logger.Error("Could not extract invoice ID from OutgoingPayment", "entity_id", entityID)
+		return
+	}
 
 	h.logger.Info("Processing outgoing payment",
 		"invoice_id", invoiceID,
