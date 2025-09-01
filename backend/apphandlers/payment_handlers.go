@@ -94,12 +94,14 @@ func (h *PaymentHandlers) handlePaymentFinished(entityID string) {
 		return
 	}
 
-	// Check if this is an outgoing payment and extract invoice_id
-	outgoingPayment, ok := (*entity).(*objects.OutgoingPayment)
+	// Cast entity to OutgoingPayment
+	outgoingPayment, ok := (*entity).(objects.OutgoingPayment)
 	if !ok {
 		h.logger.Warn("Expected OutgoingPayment but got different type", "entity_id", entityID, "type", fmt.Sprintf("%T", *entity))
 		return
 	}
+
+	h.logger.Info("Processing payment entity", "entity_id", entityID, "type", fmt.Sprintf("%T", *entity))
 
 	// Get payment status and use entityID as the identifier
 	paymentStatus := outgoingPayment.GetStatus()
@@ -110,7 +112,7 @@ func (h *PaymentHandlers) handlePaymentFinished(entityID string) {
 	h.logger.Info("Processing outgoing payment",
 		"invoice_id", invoiceID,
 		"status", paymentStatus,
-		"amount", outgoingPayment.Amount)
+		"amount", outgoingPayment.GetAmount())
 
 	// Get payment record by invoice ID
 	payment, err := h.paymentRepo.GetByInvoiceID(invoiceID)
