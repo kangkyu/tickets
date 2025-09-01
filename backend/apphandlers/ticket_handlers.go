@@ -206,6 +206,20 @@ func (h *TicketHandlers) HandlePurchaseTicket(w http.ResponseWriter, r *http.Req
 			"ticket_id", ticket.ID,
 			"uma_invoice_id", event.UMARequestInvoice.InvoiceID,
 			"uma_address", req.UMAAddress)
+
+		// Execute payment immediately using SendPaymentToInvoice
+		h.logger.Info("Executing payment for ticket", "bolt11", event.UMARequestInvoice.Bolt11[:50]+"...")
+		paymentResult, err := h.umaService.SendPaymentToInvoice(event.UMARequestInvoice.Bolt11)
+		if err != nil {
+			h.logger.Error("Failed to execute payment", "error", err)
+			// Don't fail the ticket creation - user can retry payment later
+			h.logger.Warn("Payment execution failed but ticket created - user can check status", "ticket_id", ticket.ID)
+		} else {
+			h.logger.Info("Payment executed successfully", 
+				"payment_id", paymentResult.PaymentID,
+				"status", paymentResult.Status,
+				"amount_sats", paymentResult.AmountSats)
+		}
 	}
 
 	// Return ticket and event information
