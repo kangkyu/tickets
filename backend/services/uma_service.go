@@ -142,16 +142,7 @@ func (s *LightsparkUMAService) SendPaymentToInvoice(bolt11 string) (*models.Paym
 	}
 
 	// Load node signing key first (required for payments)
-	err := s.client.LoadNodeSigningKey(s.nodeID, *services.NewSigningKeyLoaderFromNodeIdAndPassword(s.nodeID, s.nodePassword))
-	if err != nil {
-		s.logger.Error("Failed to load node signing key", "error", err)
-		return &models.PaymentResult{
-			PaymentID:  s.generatePaymentID(),
-			Status:     "failed",
-			AmountSats: 0,
-			Message:    fmt.Sprintf("Failed to load signing key: %v", err),
-		}, nil
-	}
+	s.client.LoadNodeSigningKey(s.nodeID, *services.NewSigningKeyLoaderFromNodeIdAndPassword(s.nodeID, s.nodePassword))
 
 	// Execute payment using Lightspark SDK
 	timeoutSecs := 60
