@@ -150,6 +150,8 @@ func (h *PaymentHandlers) handlePaymentFinished(entityID string) {
 		"amount", outgoingPayment.GetAmount())
 
 	// Get payment record by invoice ID
+	h.logger.Info("Looking up payment in database", "invoice_id", invoiceID, "invoice_id_length", len(invoiceID))
+	
 	payment, err := h.paymentRepo.GetByInvoiceID(invoiceID)
 	if err != nil {
 		h.logger.Error("Failed to fetch payment", "invoice_id", invoiceID, "error", err)
@@ -157,7 +159,20 @@ func (h *PaymentHandlers) handlePaymentFinished(entityID string) {
 	}
 
 	if payment == nil {
-		h.logger.Error("Payment not found", "invoice_id", invoiceID)
+		h.logger.Error("Payment not found in database", 
+			"invoice_id", invoiceID, 
+			"invoice_id_length", len(invoiceID))
+		
+		// Let's also try to see if there are any pending payments to compare
+		pendingPayments, err := h.paymentRepo.GetPendingPayments()
+		if err == nil && len(pendingPayments) > 0 {
+			h.logger.Info("Found pending payments for comparison", "count", len(pendingPayments))
+			for i, p := range pendingPayments {
+				if i < 3 { // Log first 3 for comparison
+					h.logger.Info("Pending payment", "payment_id", p.ID, "invoice_id", p.InvoiceID, "invoice_id_length", len(p.InvoiceID))
+				}
+			}
+		}
 		return
 	}
 
