@@ -106,13 +106,37 @@ func (h *PaymentHandlers) handlePaymentFinished(entityID string) {
 	// Get payment status
 	paymentStatus := outgoingPayment.GetStatus()
 
-	// Extract invoice ID from the OutgoingPayment using GetEncodedPaymentRequest
+	// Extract invoice ID from the OutgoingPayment - debug what we have
+	h.logger.Info("Debugging payment request data", 
+		"has_payment_request_data", outgoingPayment.PaymentRequestData != nil)
+	
 	var invoiceID string
 	if outgoingPayment.PaymentRequestData != nil {
-		// Cast to InvoiceData and get encoded payment request (bolt11)
-		if invoiceData, ok := (*outgoingPayment.PaymentRequestData).(*objects.InvoiceData); ok {
-			invoiceID = invoiceData.GetEncodedPaymentRequest()
+		// Log the actual type we're getting
+		actualType := fmt.Sprintf("%T", *outgoingPayment.PaymentRequestData)
+		h.logger.Info("PaymentRequestData type", "type", actualType)
+		
+		// Try different casting approaches
+		switch paymentData := (*outgoingPayment.PaymentRequestData).(type) {
+		case *objects.InvoiceData:
+			invoiceID = paymentData.GetEncodedPaymentRequest()
+			if len(invoiceID) > 50 {
+				h.logger.Info("Got invoice ID from InvoiceData", "invoice_id", invoiceID[:50]+"...")
+			} else {
+				h.logger.Info("Got invoice ID from InvoiceData", "invoice_id", invoiceID)
+			}
+		case objects.InvoiceData:
+			invoiceID = paymentData.GetEncodedPaymentRequest()
+			if len(invoiceID) > 50 {
+				h.logger.Info("Got invoice ID from InvoiceData (value type)", "invoice_id", invoiceID[:50]+"...")
+			} else {
+				h.logger.Info("Got invoice ID from InvoiceData (value type)", "invoice_id", invoiceID)
+			}
+		default:
+			h.logger.Warn("PaymentRequestData is not InvoiceData", "actual_type", actualType)
 		}
+	} else {
+		h.logger.Warn("PaymentRequestData is nil")
 	}
 	
 	if invoiceID == "" {
