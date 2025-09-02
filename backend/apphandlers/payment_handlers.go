@@ -106,23 +106,13 @@ func (h *PaymentHandlers) handlePaymentFinished(entityID string) {
 	// Get payment status
 	paymentStatus := outgoingPayment.GetStatus()
 
-	// Extract invoice ID from the OutgoingPayment - debug what we have
-	h.logger.Info("Debugging payment request data",
-		"has_payment_request_data", outgoingPayment.PaymentRequestData != nil)
-
+	// Extract invoice ID from the OutgoingPayment
 	var invoiceID string
 	if outgoingPayment.PaymentRequestData != nil {
-		// Since PaymentRequestData is an interface, we need to check what we actually get
-		actualType := fmt.Sprintf("%T", *outgoingPayment.PaymentRequestData)
-		h.logger.Info("PaymentRequestData type", "type", actualType)
-
-		// Try to access the bolt11 directly from the interface
-		// The interface should have a method to get the encoded payment request
 		if encodedReq, ok := (*outgoingPayment.PaymentRequestData).(objects.InvoiceData); ok {
 			invoiceID = encodedReq.GetEncodedPaymentRequest()
-			h.logger.Info("Extracted bolt11 from PaymentRequestData", "bolt11", invoiceID[:smaller(50, len(invoiceID))]+"...")
 		} else {
-			h.logger.Warn("PaymentRequestData doesn't implement InvoiceData", "actual_type", actualType)
+			h.logger.Warn("PaymentRequestData doesn't implement InvoiceData")
 		}
 	} else {
 		h.logger.Warn("PaymentRequestData is nil")
@@ -139,9 +129,6 @@ func (h *PaymentHandlers) handlePaymentFinished(entityID string) {
 		"amount", outgoingPayment.GetAmount())
 
 	// Get payment record by bolt11 (since invoiceID is our internal ID, not what Lightspark knows)
-	h.logger.Info("Looking up payment in database by bolt11", "bolt11", invoiceID, "bolt11_length", len(invoiceID))
-
-	// We need to look up by bolt11, not by internal invoice ID
 	payment, err := h.paymentRepo.GetByInvoiceID(invoiceID)
 	if err != nil {
 		h.logger.Error("Failed to fetch payment", "invoice_id", invoiceID, "error", err)
@@ -149,20 +136,7 @@ func (h *PaymentHandlers) handlePaymentFinished(entityID string) {
 	}
 
 	if payment == nil {
-		h.logger.Error("Payment not found in database",
-			"invoice_id", invoiceID,
-			"invoice_id_length", len(invoiceID))
-
-		// Let's also try to see if there are any pending payments to compare
-		pendingPayments, err := h.paymentRepo.GetPendingPayments()
-		if err == nil && len(pendingPayments) > 0 {
-			h.logger.Info("Found pending payments for comparison", "count", len(pendingPayments))
-			for i, p := range pendingPayments {
-				if i < 3 { // Log first 3 for comparison
-					h.logger.Info("Pending payment", "payment_id", p.ID, "invoice_id", p.InvoiceID, "invoice_id_length", len(p.InvoiceID))
-				}
-			}
-		}
+		h.logger.Error("Payment not found in database", "invoice_id", invoiceID)
 		return
 	}
 
