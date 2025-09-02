@@ -189,9 +189,10 @@ func (h *TicketHandlers) HandlePurchaseTicket(w http.ResponseWriter, r *http.Req
 		}
 
 		// Create payment record using UMA Request invoice
+		// Store the Bolt11 as InvoiceID since that's what Lightspark webhooks will return
 		payment = &models.Payment{
 			TicketID:  ticket.ID,
-			InvoiceID: event.UMARequestInvoice.InvoiceID,
+			InvoiceID: event.UMARequestInvoice.Bolt11, // Use Bolt11 instead of InvoiceID
 			Amount:    event.UMARequestInvoice.AmountSats,
 			Status:    "pending",
 		}

@@ -54,6 +54,7 @@ func (r *paymentRepository) GetByInvoiceID(invoiceID string) (*models.Payment, e
 	return payment, nil
 }
 
+
 func (r *paymentRepository) GetByTicketID(ticketID int) (*models.Payment, error) {
 	payment := &models.Payment{}
 	query := `SELECT * FROM payments WHERE ticket_id = $1`

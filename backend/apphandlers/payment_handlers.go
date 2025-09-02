@@ -107,38 +107,27 @@ func (h *PaymentHandlers) handlePaymentFinished(entityID string) {
 	paymentStatus := outgoingPayment.GetStatus()
 
 	// Extract invoice ID from the OutgoingPayment - debug what we have
-	h.logger.Info("Debugging payment request data", 
+	h.logger.Info("Debugging payment request data",
 		"has_payment_request_data", outgoingPayment.PaymentRequestData != nil)
-	
+
 	var invoiceID string
 	if outgoingPayment.PaymentRequestData != nil {
-		// Log the actual type we're getting
+		// Since PaymentRequestData is an interface, we need to check what we actually get
 		actualType := fmt.Sprintf("%T", *outgoingPayment.PaymentRequestData)
 		h.logger.Info("PaymentRequestData type", "type", actualType)
-		
-		// Try different casting approaches
-		switch paymentData := (*outgoingPayment.PaymentRequestData).(type) {
-		case *objects.InvoiceData:
-			invoiceID = paymentData.GetEncodedPaymentRequest()
-			if len(invoiceID) > 50 {
-				h.logger.Info("Got invoice ID from InvoiceData", "invoice_id", invoiceID[:50]+"...")
-			} else {
-				h.logger.Info("Got invoice ID from InvoiceData", "invoice_id", invoiceID)
-			}
-		case objects.InvoiceData:
-			invoiceID = paymentData.GetEncodedPaymentRequest()
-			if len(invoiceID) > 50 {
-				h.logger.Info("Got invoice ID from InvoiceData (value type)", "invoice_id", invoiceID[:50]+"...")
-			} else {
-				h.logger.Info("Got invoice ID from InvoiceData (value type)", "invoice_id", invoiceID)
-			}
-		default:
-			h.logger.Warn("PaymentRequestData is not InvoiceData", "actual_type", actualType)
+
+		// Try to access the bolt11 directly from the interface
+		// The interface should have a method to get the encoded payment request
+		if encodedReq, ok := (*outgoingPayment.PaymentRequestData).(objects.InvoiceData); ok {
+			invoiceID = encodedReq.GetEncodedPaymentRequest()
+			h.logger.Info("Extracted bolt11 from PaymentRequestData", "bolt11", invoiceID[:smaller(50, len(invoiceID))]+"...")
+		} else {
+			h.logger.Warn("PaymentRequestData doesn't implement InvoiceData", "actual_type", actualType)
 		}
 	} else {
 		h.logger.Warn("PaymentRequestData is nil")
 	}
-	
+
 	if invoiceID == "" {
 		h.logger.Error("Could not extract invoice ID from OutgoingPayment", "entity_id", entityID)
 		return
@@ -149,9 +138,10 @@ func (h *PaymentHandlers) handlePaymentFinished(entityID string) {
 		"status", paymentStatus,
 		"amount", outgoingPayment.GetAmount())
 
-	// Get payment record by invoice ID
-	h.logger.Info("Looking up payment in database", "invoice_id", invoiceID, "invoice_id_length", len(invoiceID))
-	
+	// Get payment record by bolt11 (since invoiceID is our internal ID, not what Lightspark knows)
+	h.logger.Info("Looking up payment in database by bolt11", "bolt11", invoiceID, "bolt11_length", len(invoiceID))
+
+	// We need to look up by bolt11, not by internal invoice ID
 	payment, err := h.paymentRepo.GetByInvoiceID(invoiceID)
 	if err != nil {
 		h.logger.Error("Failed to fetch payment", "invoice_id", invoiceID, "error", err)
@@ -159,10 +149,10 @@ func (h *PaymentHandlers) handlePaymentFinished(entityID string) {
 	}
 
 	if payment == nil {
-		h.logger.Error("Payment not found in database", 
-			"invoice_id", invoiceID, 
+		h.logger.Error("Payment not found in database",
+			"invoice_id", invoiceID,
 			"invoice_id_length", len(invoiceID))
-		
+
 		// Let's also try to see if there are any pending payments to compare
 		pendingPayments, err := h.paymentRepo.GetPendingPayments()
 		if err == nil && len(pendingPayments) > 0 {
@@ -402,4 +392,12 @@ func (h *PaymentHandlers) HandleRetryPayment(w http.ResponseWriter, r *http.Requ
 		Message: "Payment retry initiated successfully",
 		Data:    retryResponse,
 	})
+}
+
+// min returns the minimum of two integers
+func smaller(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
