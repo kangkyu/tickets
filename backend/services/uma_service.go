@@ -19,6 +19,7 @@ type UMAService interface {
 	CreateUMARequest(umaAddress string, amountSats int64, description string, isAdmin bool) (*models.Invoice, error)
 	CreateTicketInvoice(umaAddress string, amountSats int64, description string) (*models.Invoice, error)
 	ChargeUMAAddress(umaAddress string, amountSats int64, description string) (*models.PaymentResult, error)
+	SendPaymentToInvoice(bolt11 string) (*models.PaymentResult, error)
 	CheckPaymentStatus(invoiceID string) (*models.PaymentStatus, error)
 	GetNodeBalance() (*models.NodeBalance, error)
 	ValidateUMAAddress(address string) error
@@ -128,6 +129,62 @@ func (s *LightsparkUMAService) CreateTicketInvoice(umaAddress string, amountSats
 
 	// Create one-time Lightning invoice for ticket purchase
 	return s.createOneTimeInvoice(amountSats, fmt.Sprintf("Ticket Purchase - %s", description))
+}
+
+// SendPaymentToInvoice pays a Lightning invoice using Lightspark SDK's PayUmaInvoice
+// This will trigger webhooks when the payment is completed on testnet
+func (s *LightsparkUMAService) SendPaymentToInvoice(bolt11 string) (*models.PaymentResult, error) {
+	s.logger.Info("Sending payment to Lightning invoice", "bolt11", bolt11[:50]+"...")
+
+	// Check if we have proper Lightspark credentials
+	if s.clientID == "" || s.clientSecret == "" || s.nodeID == "" {
+		return nil, fmt.Errorf("Lightspark credentials not configured")
+	}
+
+	// Load node signing key first (required for payments)
+	s.client.LoadNodeSigningKey(s.nodeID, *services.NewSigningKeyLoaderFromNodeIdAndPassword(s.nodeID, s.nodePassword))
+
+	// Execute payment using Lightspark SDK
+	timeoutSecs := 60
+	maximumFeesMsats := int64(10000) // 10 sats max fee
+	var amountMsats *int64 = nil     // Use amount from invoice
+
+	paymentResult, err := s.client.PayUmaInvoice(s.nodeID, bolt11, timeoutSecs, maximumFeesMsats, amountMsats)
+	if err != nil {
+		s.logger.Error("Payment failed", "error", err)
+		return &models.PaymentResult{
+			PaymentID:  s.generatePaymentID(),
+			Status:     "failed",
+			AmountSats: 0,
+			Message:    fmt.Sprintf("Payment failed: %v", err),
+		}, nil
+	}
+
+	if paymentResult == nil {
+		return &models.PaymentResult{
+			PaymentID:  s.generatePaymentID(),
+			Status:     "failed",
+			AmountSats: 0,
+			Message:    "Payment result was nil",
+		}, nil
+	}
+
+	// Extract info from OutgoingPayment
+	paymentID := paymentResult.GetId()
+	if paymentID == "" {
+		paymentID = s.generatePaymentID()
+	}
+
+	amountSats := paymentResult.GetAmount().OriginalValue / 1000 // Convert msats to sats
+
+	s.logger.Info("Payment sent successfully", "payment_id", paymentID, "amount_sats", amountSats)
+
+	return &models.PaymentResult{
+		PaymentID:  paymentID,
+		Status:     "success",
+		AmountSats: amountSats,
+		Message:    "Payment sent successfully - webhook should be triggered",
+	}, nil
 }
 
 // ChargeUMAAddress attempts to charge a UMA address/Lightning node for a payment

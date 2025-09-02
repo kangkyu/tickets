@@ -61,7 +61,7 @@ ALTER SEQUENCE public.events_id_seq OWNED BY public.events.id;
 CREATE TABLE public.payments (
     id integer NOT NULL,
     ticket_id integer NOT NULL,
-    invoice_id character varying(255) NOT NULL,
+    invoice_id text NOT NULL,
     amount_sats bigint NOT NULL,
     status character varying(50) DEFAULT 'pending'::character varying,
     paid_at timestamp without time zone,
@@ -109,7 +109,7 @@ CREATE TABLE public.tickets (
     user_id integer NOT NULL,
     ticket_code character varying(255) NOT NULL,
     payment_status character varying(50) DEFAULT 'pending'::character varying,
-    invoice_id character varying(255),
+    invoice_id text,
     uma_address character varying(255),
     paid_at timestamp without time zone,
     created_at timestamp without time zone DEFAULT now(),
@@ -144,7 +144,7 @@ ALTER SEQUENCE public.tickets_id_seq OWNED BY public.tickets.id;
 CREATE TABLE public.uma_request_invoices (
     id integer NOT NULL,
     event_id integer NOT NULL,
-    invoice_id character varying(255) NOT NULL,
+    invoice_id text NOT NULL,
     payment_hash character varying(255),
     bolt11 text NOT NULL,
     amount_sats bigint NOT NULL,
@@ -430,4 +430,5 @@ INSERT INTO public.schema_migrations (version) VALUES
     ('20250817230603'),
     ('20250817230622'),
     ('20250817230648'),
-    ('20250817230649');
+    ('20250817230649'),
+    ('20250901202340');

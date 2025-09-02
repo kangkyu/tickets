@@ -64,7 +64,7 @@ func (h *PaymentHandlers) HandlePaymentWebhook(w http.ResponseWriter, r *http.Re
 	}
 	if event.EventType == objects.WebhookEventTypePaymentFinished {
 		entityId := event.EntityId
-		h.handlePaymentFinished(entityId) //   TODO: Implement payment handling logic here
+		h.handlePaymentFinished(entityId)
 	}
 
 	// Return success response
@@ -94,25 +94,41 @@ func (h *PaymentHandlers) handlePaymentFinished(entityID string) {
 		return
 	}
 
-	// Check if this is an outgoing payment and extract invoice_id
-	outgoingPayment, ok := (*entity).(*objects.OutgoingPayment)
+	// Cast entity to OutgoingPayment
+	outgoingPayment, ok := (*entity).(objects.OutgoingPayment)
 	if !ok {
 		h.logger.Warn("Expected OutgoingPayment but got different type", "entity_id", entityID, "type", fmt.Sprintf("%T", *entity))
 		return
 	}
 
-	// Get payment status and use entityID as the identifier
+	h.logger.Info("Processing payment entity", "entity_id", entityID, "type", fmt.Sprintf("%T", *entity))
+
+	// Get payment status
 	paymentStatus := outgoingPayment.GetStatus()
 
-	// Use entityID as our payment identifier since we don't have direct access to invoice fields
-	invoiceID := entityID
+	// Extract invoice ID from the OutgoingPayment
+	var invoiceID string
+	if outgoingPayment.PaymentRequestData != nil {
+		if encodedReq, ok := (*outgoingPayment.PaymentRequestData).(objects.InvoiceData); ok {
+			invoiceID = encodedReq.GetEncodedPaymentRequest()
+		} else {
+			h.logger.Warn("PaymentRequestData doesn't implement InvoiceData")
+		}
+	} else {
+		h.logger.Warn("PaymentRequestData is nil")
+	}
+
+	if invoiceID == "" {
+		h.logger.Error("Could not extract invoice ID from OutgoingPayment", "entity_id", entityID)
+		return
+	}
 
 	h.logger.Info("Processing outgoing payment",
 		"invoice_id", invoiceID,
 		"status", paymentStatus,
-		"amount", outgoingPayment.Amount)
+		"amount", outgoingPayment.GetAmount())
 
-	// Get payment record by invoice ID
+	// Get payment record by bolt11 (since invoiceID is our internal ID, not what Lightspark knows)
 	payment, err := h.paymentRepo.GetByInvoiceID(invoiceID)
 	if err != nil {
 		h.logger.Error("Failed to fetch payment", "invoice_id", invoiceID, "error", err)
@@ -120,7 +136,7 @@ func (h *PaymentHandlers) handlePaymentFinished(entityID string) {
 	}
 
 	if payment == nil {
-		h.logger.Error("Payment not found", "invoice_id", invoiceID)
+		h.logger.Error("Payment not found in database", "invoice_id", invoiceID)
 		return
 	}
 
@@ -350,4 +366,12 @@ func (h *PaymentHandlers) HandleRetryPayment(w http.ResponseWriter, r *http.Requ
 		Message: "Payment retry initiated successfully",
 		Data:    retryResponse,
 	})
+}
+
+// min returns the minimum of two integers
+func smaller(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
