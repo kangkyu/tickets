@@ -68,7 +68,7 @@ func (m *MockUMAService) CreateUMARequest(umaAddress string, amountSats int64, d
 	return &models.Invoice{
 		ID:          "test-invoice-123",
 		PaymentHash: "test-payment-hash-456",
-		Bolt11:      "lntb10000n1p3test...",
+		Bolt11:      "lntb10000n1p3testmockinvoiceforsimulationpurposes1234567890abcdefghijklmnopqrstuvwxyz",
 		AmountSats:  amountSats,
 		Status:      "pending",
 		ExpiresAt:   timePtr(time.Now().Add(time.Hour)),
@@ -89,6 +89,16 @@ func (m *MockUMAService) ChargeUMAAddress(umaAddress string, amountSats int64, d
 		Status:     "success",
 		AmountSats: amountSats,
 		Message:    "Mock payment successful",
+	}, nil
+}
+
+func (m *MockUMAService) SendPaymentToInvoice(bolt11 string) (*models.PaymentResult, error) {
+	m.logger.Info("Mock SendPaymentToInvoice called", "bolt11", bolt11[:20]+"...")
+	return &models.PaymentResult{
+		PaymentID:  "test-outgoing-payment-123",
+		Status:     "success", 
+		AmountSats: 1000,
+		Message:    "Mock payment sent successfully - webhook will be triggered",
 	}, nil
 }
 
