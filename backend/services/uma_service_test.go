@@ -130,15 +130,11 @@ func TestGetNodeBalance(t *testing.T) {
 		t.Errorf("Expected status 'ready', got '%s'", balance.Status)
 	}
 
-	// Test with credentials (should return simulated real balance)
+	// Test with fake credentials (should fail with auth error from Lightspark API)
 	serviceWithCreds := NewLightsparkUMAService("test-client", "test-secret", "test-node", "test-password", logger)
-	balanceReal, err := serviceWithCreds.GetNodeBalance()
-	if err != nil {
-		t.Fatal("Failed to get node balance with credentials:", err)
-	}
-
-	if balanceReal.NodeID != "test-node" {
-		t.Errorf("Expected test-node ID, got '%s'", balanceReal.NodeID)
+	_, err = serviceWithCreds.GetNodeBalance()
+	if err == nil {
+		t.Error("Expected error when using fake credentials, got nil")
 	}
 }
 

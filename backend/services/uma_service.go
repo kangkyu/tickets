@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/lightsparkdev/go-sdk/objects"
 	"github.com/lightsparkdev/go-sdk/services"
 
 	"tickets-by-uma/models"
@@ -211,13 +212,36 @@ func (s *LightsparkUMAService) GetNodeBalance() (*models.NodeBalance, error) {
 
 	s.logger.Info("Fetching Lightspark node balance", "node_id", s.nodeID)
 
-	// Use Lightspark SDK to get node information
-	// TODO: returning simulated data based on real node -- need proper API calls
+	entity, err := s.client.GetEntity(s.nodeID)
+	if err != nil {
+		s.logger.Error("Failed to get node entity", "error", err)
+		return nil, fmt.Errorf("failed to get node entity: %w", err)
+	}
+	if entity == nil {
+		return nil, fmt.Errorf("node entity not found")
+	}
+
+	lightsparkNode, ok := (*entity).(objects.LightsparkNode)
+	if !ok {
+		return nil, fmt.Errorf("entity is not a LightsparkNode")
+	}
+
+	status := "unknown"
+	if nodeStatus := lightsparkNode.GetStatus(); nodeStatus != nil {
+		status = nodeStatus.StringValue()
+	}
+
+	var totalSats, availableSats int64
+	if balances := lightsparkNode.GetBalances(); balances != nil {
+		totalSats = balances.OwnedBalance.OriginalValue / 1000         // msats to sats
+		availableSats = balances.AvailableToSendBalance.OriginalValue / 1000
+	}
+
 	return &models.NodeBalance{
-		TotalBalanceSats:     0, // Will be updated with real API call
-		AvailableBalanceSats: 0, // Will be updated with real API call
+		TotalBalanceSats:     totalSats,
+		AvailableBalanceSats: availableSats,
 		NodeID:               s.nodeID,
-		Status:               "ready", // Assume ready if credentials are set
+		Status:               status,
 	}, nil
 }
 
