@@ -10,7 +10,6 @@ import (
 
 	"github.com/gorilla/mux"
 
-	"tickets-by-uma/config"
 	"tickets-by-uma/middleware"
 	"tickets-by-uma/models"
 	"tickets-by-uma/repositories"
@@ -24,7 +23,6 @@ type TicketHandlers struct {
 	umaRepo     repositories.UMARequestInvoiceRepository
 	umaService  services.UMAService
 	logger      *slog.Logger
-	config      *config.Config
 }
 
 func NewTicketHandlers(
@@ -34,7 +32,6 @@ func NewTicketHandlers(
 	umaRepo repositories.UMARequestInvoiceRepository,
 	umaService services.UMAService,
 	logger *slog.Logger,
-	config *config.Config,
 ) *TicketHandlers {
 	return &TicketHandlers{
 		ticketRepo:  ticketRepo,
@@ -43,7 +40,6 @@ func NewTicketHandlers(
 		umaRepo:     umaRepo,
 		umaService:  umaService,
 		logger:      logger,
-		config:      config,
 	}
 }
 
@@ -150,11 +146,10 @@ func (h *TicketHandlers) HandlePurchaseTicket(w http.ResponseWriter, r *http.Req
 			return
 		}
 
-		// 2. Create a new invoice for this ticket
-		umaAddress := "$event@" + h.getDomainFromConfig()
+		// 2. Create a new invoice for this ticket (using buyer's UMA address)
 		description := fmt.Sprintf("Ticket #%d for %s", ticket.ID, event.Title)
 
-		invoice, err := h.umaService.CreateTicketInvoice(umaAddress, event.PriceSats, description)
+		invoice, err := h.umaService.CreateTicketInvoice(req.UMAAddress, event.PriceSats, description)
 		if err != nil {
 			h.logger.Error("Failed to create ticket invoice", "ticket_id", ticket.ID, "error", err)
 			middleware.WriteError(w, http.StatusInternalServerError, "Failed to create payment invoice")
@@ -170,7 +165,7 @@ func (h *TicketHandlers) HandlePurchaseTicket(w http.ResponseWriter, r *http.Req
 			Bolt11:      invoice.Bolt11,
 			AmountSats:  invoice.AmountSats,
 			Status:      invoice.Status,
-			UMAAddress:  umaAddress,
+			UMAAddress:  req.UMAAddress,
 			Description: description,
 			ExpiresAt:   invoice.ExpiresAt,
 		}
@@ -201,23 +196,10 @@ func (h *TicketHandlers) HandlePurchaseTicket(w http.ResponseWriter, r *http.Req
 			h.logger.Error("Failed to update ticket invoice_id", "ticket_id", ticket.ID, "error", err)
 		}
 
-		h.logger.Info("Ticket created with per-ticket invoice",
+		h.logger.Info("Ticket created with per-ticket invoice — waiting for buyer payment",
 			"ticket_id", ticket.ID,
 			"invoice_id", invoice.ID,
 			"uma_address", req.UMAAddress)
-
-		// 6. Execute payment immediately
-		h.logger.Info("Executing payment for ticket", "bolt11", invoice.Bolt11[:50]+"...")
-		paymentResult, err := h.umaService.SendPaymentToInvoice(invoice.Bolt11)
-		if err != nil {
-			h.logger.Error("Failed to execute payment", "error", err)
-			h.logger.Warn("Payment execution failed but ticket created - user can check status", "ticket_id", ticket.ID)
-		} else {
-			h.logger.Info("Payment executed successfully",
-				"payment_id", paymentResult.PaymentID,
-				"status", paymentResult.Status,
-				"amount_sats", paymentResult.AmountSats)
-		}
 	}
 
 	// Return ticket and event information
@@ -552,13 +534,6 @@ func (h *TicketHandlers) HandleUMAPaymentCallback(w http.ResponseWriter, r *http
 		Message: "Payment callback processed successfully",
 		Data:    map[string]string{"status": "processed"},
 	})
-}
-
-func (h *TicketHandlers) getDomainFromConfig() string {
-	if h.config == nil {
-		return "localhost"
-	}
-	return h.config.Domain
 }
 
 // validatePurchaseRequest validates the ticket purchase request
