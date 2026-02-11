@@ -408,21 +408,7 @@ func TestTicketPurchaseFlow(t *testing.T) {
 	eventData := eventResp.Data.(map[string]interface{})
 	eventID := eventData["id"].(float64)
 
-	// Create UMA Request invoice for the paid event (required by business logic)
-	umaInvoiceReq, _ := http.NewRequest("POST", ts.httpServer.URL+"/api/admin/events/"+fmt.Sprintf("%.0f", eventID)+"/uma-invoice", nil)
-	umaInvoiceReq.Header.Set("Authorization", "Bearer "+adminToken)
-
-	resp, err = client.Do(umaInvoiceReq)
-	if err != nil {
-		t.Fatal("Failed to create UMA Request invoice:", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusCreated {
-		var errorResp models.ErrorResponse
-		json.NewDecoder(resp.Body).Decode(&errorResp)
-		t.Fatalf("Expected status 201 for UMA invoice creation, got %d. Error: %s", resp.StatusCode, errorResp.Message)
-	}
+	// No need to pre-create UMA invoice — invoices are now created per ticket during purchase
 
 	// Use fixture buyer user
 	buyer := ts.getUser("buyer@test.com")
@@ -512,21 +498,7 @@ func TestFreeTicketPurchaseFlow(t *testing.T) {
 	eventData := eventResp.Data.(map[string]interface{})
 	eventID := eventData["id"].(float64)
 
-	// Create UMA Request invoice for the paid event (required by business logic)
-	umaInvoiceReq, _ := http.NewRequest("POST", ts.httpServer.URL+"/api/admin/events/"+fmt.Sprintf("%.0f", eventID)+"/uma-invoice", nil)
-	umaInvoiceReq.Header.Set("Authorization", "Bearer "+adminToken)
-
-	resp, err = client.Do(umaInvoiceReq)
-	if err != nil {
-		t.Fatal("Failed to create UMA Request invoice:", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusCreated {
-		var errorResp models.ErrorResponse
-		json.NewDecoder(resp.Body).Decode(&errorResp)
-		t.Fatalf("Expected status 201 for UMA invoice creation, got %d. Error: %s", resp.StatusCode, errorResp.Message)
-	}
+	// No need to pre-create UMA invoice — invoices are now created per ticket during purchase
 
 	// Use fixture free buyer user
 	freeBuyer := ts.getUser("freebuyer@test.com")

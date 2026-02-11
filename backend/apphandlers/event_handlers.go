@@ -432,7 +432,7 @@ func (h *EventHandlers) HandleCreateEventUMAInvoice(w http.ResponseWriter, r *ht
 
 	// Store the UMA Request invoice in the separate table
 	umaInvoiceRecord := &models.UMARequestInvoice{
-		EventID:     eventID,
+		EventID:     &eventID,
 		InvoiceID:   umaInvoice.ID,
 		PaymentHash: umaInvoice.PaymentHash,
 		Bolt11:      umaInvoice.Bolt11,

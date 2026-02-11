@@ -193,13 +193,13 @@ func NewUMARequestInvoiceRepository(db *sqlx.DB) UMARequestInvoiceRepository {
 
 func (r *umaRequestInvoiceRepository) Create(invoice *models.UMARequestInvoice) error {
 	query := `
-		INSERT INTO uma_request_invoices (event_id, invoice_id, payment_hash, bolt11, amount_sats, status, uma_address, description, expires_at, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+		INSERT INTO uma_request_invoices (event_id, ticket_id, invoice_id, payment_hash, bolt11, amount_sats, status, uma_address, description, expires_at, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 		RETURNING id, created_at, updated_at`
 
 	now := time.Now()
 	return r.db.QueryRowx(query,
-		invoice.EventID, invoice.InvoiceID, invoice.PaymentHash, invoice.Bolt11,
+		invoice.EventID, invoice.TicketID, invoice.InvoiceID, invoice.PaymentHash, invoice.Bolt11,
 		invoice.AmountSats, invoice.Status, invoice.UMAAddress, invoice.Description,
 		invoice.ExpiresAt, now, now).StructScan(invoice)
 }
@@ -211,6 +211,19 @@ func (r *umaRequestInvoiceRepository) GetByEventID(eventID int) (*models.UMARequ
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil // No invoice found for this event
+		}
+		return nil, err
+	}
+	return invoice, nil
+}
+
+func (r *umaRequestInvoiceRepository) GetByTicketID(ticketID int) (*models.UMARequestInvoice, error) {
+	invoice := &models.UMARequestInvoice{}
+	query := `SELECT * FROM uma_request_invoices WHERE ticket_id = $1`
+	err := r.db.Get(invoice, query, ticketID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
 		}
 		return nil, err
 	}

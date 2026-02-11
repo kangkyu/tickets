@@ -29,6 +29,7 @@ type EventRepository interface {
 type UMARequestInvoiceRepository interface {
 	Create(invoice *models.UMARequestInvoice) error
 	GetByEventID(eventID int) (*models.UMARequestInvoice, error)
+	GetByTicketID(ticketID int) (*models.UMARequestInvoice, error)
 	Update(invoice *models.UMARequestInvoice) error
 	Delete(id int) error
 }

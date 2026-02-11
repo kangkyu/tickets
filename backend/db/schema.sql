@@ -143,7 +143,8 @@ ALTER SEQUENCE public.tickets_id_seq OWNED BY public.tickets.id;
 
 CREATE TABLE public.uma_request_invoices (
     id integer NOT NULL,
-    event_id integer NOT NULL,
+    event_id integer,
+    ticket_id integer,
     invoice_id text NOT NULL,
     payment_hash character varying(255),
     bolt11 text NOT NULL,
@@ -382,6 +383,13 @@ CREATE INDEX idx_uma_invoices_status ON public.uma_request_invoices USING btree 
 
 
 --
+-- Name: idx_uma_invoices_ticket_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_uma_invoices_ticket_id ON public.uma_request_invoices USING btree (ticket_id);
+
+
+--
 -- Name: payments payments_ticket_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -414,6 +422,14 @@ ALTER TABLE ONLY public.uma_request_invoices
 
 
 --
+-- Name: uma_request_invoices uma_request_invoices_ticket_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.uma_request_invoices
+    ADD CONSTRAINT uma_request_invoices_ticket_id_fkey FOREIGN KEY (ticket_id) REFERENCES public.tickets(id);
+
+
+--
 -- PostgreSQL database dump complete
 --
 
@@ -431,4 +447,5 @@ INSERT INTO public.schema_migrations (version) VALUES
     ('20250817230622'),
     ('20250817230648'),
     ('20250817230649'),
-    ('20250901202340');
+    ('20250901202340'),
+    ('20260210000001');

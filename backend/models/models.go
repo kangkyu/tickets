@@ -34,7 +34,8 @@ type Event struct {
 // UMARequestInvoice represents a UMA Request invoice for an event
 type UMARequestInvoice struct {
 	ID          int        `json:"id" db:"id"`
-	EventID     int        `json:"event_id" db:"event_id"`
+	EventID     *int       `json:"event_id" db:"event_id"`
+	TicketID    *int       `json:"ticket_id,omitempty" db:"ticket_id"`
 	InvoiceID   string     `json:"invoice_id" db:"invoice_id"`
 	PaymentHash string     `json:"payment_hash" db:"payment_hash"`
 	Bolt11      string     `json:"bolt11" db:"bolt11"`

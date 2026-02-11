@@ -158,7 +158,7 @@ func (s *Server) setupRoutes() {
 func (s *Server) initializeHandlers() {
 	s.userHandlers = apphandlers.NewUserHandlers(s.userRepo, s.logger, s.config.JWTSecret)
 	s.eventHandlers = apphandlers.NewEventHandlers(s.eventRepo, s.paymentRepo, s.ticketRepo, s.umaService, s.umaRepo, s.logger, s.config)
-	s.ticketHandlers = apphandlers.NewTicketHandlers(s.ticketRepo, s.eventRepo, s.paymentRepo, s.umaService, s.logger)
+	s.ticketHandlers = apphandlers.NewTicketHandlers(s.ticketRepo, s.eventRepo, s.paymentRepo, s.umaRepo, s.umaService, s.logger, s.config)
 	s.paymentHandlers = apphandlers.NewPaymentHandlers(s.paymentRepo, s.ticketRepo, s.umaService, s.lightsparkClient, s.logger)
 }
 
