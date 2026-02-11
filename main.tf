@@ -47,12 +47,6 @@ variable "domain_name" {
   default     = "fanmeeting.org"
 }
 
-variable "use_custom_domain" {
-  description = "Whether to use custom domain with CloudFront"
-  type        = bool
-  default     = false
-}
-
 variable "github_repo_url" {
   description = "GitHub repository URL"
   type        = string
@@ -751,7 +745,7 @@ resource "aws_amplify_branch" "main" {
 
   # Updated environment variables for the new setup
   environment_variables = {
-    VITE_API_BASE_URL = var.use_custom_domain ? "https://api.${var.domain_name}" : "http://${aws_lb.main.dns_name}"
+    VITE_API_BASE_URL = "https://api.${var.domain_name}"
     NODE_ENV          = "production"
   }
 
@@ -761,24 +755,9 @@ resource "aws_amplify_branch" "main" {
   }
 }
 
-# Add custom domain to Amplify app
-resource "aws_amplify_domain_association" "main" {
-  count       = var.use_custom_domain ? 1 : 0
-  app_id      = aws_amplify_app.frontend.id
-  domain_name = var.domain_name
-
-  # Add subdomain for API if needed
-  sub_domain {
-    branch_name = aws_amplify_branch.main.branch_name
-    prefix      = "" # Root domain
-  }
-}
-
-# ACM certificate for ALB (in your main region)
+# ACM certificate for ALB
 resource "aws_acm_certificate" "alb" {
-  count       = var.use_custom_domain ? 1 : 0
-  domain_name = "api.${var.domain_name}" # api.fanmeeting.org
-
+  domain_name       = "api.${var.domain_name}"
   validation_method = "DNS"
 
   lifecycle {
@@ -793,12 +772,11 @@ resource "aws_acm_certificate" "alb" {
 
 # HTTPS listener for ALB
 resource "aws_lb_listener" "https" {
-  count             = var.use_custom_domain ? 1 : 0
   load_balancer_arn = aws_lb.main.arn
   port              = "443"
   protocol          = "HTTPS"
   ssl_policy        = "ELBSecurityPolicy-TLS-1-2-2017-01"
-  certificate_arn   = aws_acm_certificate.alb[0].arn
+  certificate_arn   = aws_acm_certificate.alb.arn
 
   default_action {
     type             = "forward"
@@ -806,24 +784,24 @@ resource "aws_lb_listener" "https" {
   }
 }
 
-output "amplify_dns_record" {
-  description = "DNS record to add at Name.com for Amplify"
-  value = var.use_custom_domain ? {
-    message = "Add this CNAME record at Name.com:"
-    type    = "CNAME"
-    name    = var.domain_name
-    target  = aws_amplify_domain_association.main[0].certificate_verification_dns_record
-  } : null
+output "acm_validation_records" {
+  description = "DNS records to add at Name.com for ACM certificate validation"
+  value = {
+    for dvo in aws_acm_certificate.alb.domain_validation_options : dvo.domain_name => {
+      type  = dvo.resource_record_type
+      name  = dvo.resource_record_name
+      value = dvo.resource_record_value
+    }
+  }
 }
 
 output "backend_dns_record" {
-  description = "DNS record for backend API"
-  value = var.use_custom_domain ? {
-    message = "Add this CNAME record at Name.com:"
-    type    = "CNAME"
-    name    = "api.${var.domain_name}"
-    target  = aws_lb.main.dns_name
-  } : null
+  description = "CNAME record to add at Name.com for api subdomain"
+  value = {
+    type  = "CNAME"
+    name  = "api.${var.domain_name}"
+    value = aws_lb.main.dns_name
+  }
 }
 
 output "backend_url" {
@@ -849,5 +827,5 @@ output "amplify_app_id" {
 
 output "custom_domain_url" {
   description = "Custom domain URL"
-  value       = var.use_custom_domain ? "https://${var.domain_name}" : null
+  value       = "https://${var.domain_name}"
 }
