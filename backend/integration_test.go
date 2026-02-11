@@ -83,15 +83,6 @@ func (m *MockUMAService) CreateTicketInvoice(umaAddress string, amountSats int64
 	return m.CreateUMARequest(umaAddress, amountSats, description, false)
 }
 
-func (m *MockUMAService) ChargeUMAAddress(umaAddress string, amountSats int64, description string) (*models.PaymentResult, error) {
-	return &models.PaymentResult{
-		PaymentID:  "test-payment-789",
-		Status:     "success",
-		AmountSats: amountSats,
-		Message:    "Mock payment successful",
-	}, nil
-}
-
 func (m *MockUMAService) SendPaymentToInvoice(bolt11 string) (*models.PaymentResult, error) {
 	m.logger.Info("Mock SendPaymentToInvoice called", "bolt11", bolt11[:20]+"...")
 	return &models.PaymentResult{

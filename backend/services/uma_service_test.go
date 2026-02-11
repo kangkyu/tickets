@@ -80,18 +80,10 @@ func TestCreateUMARequest(t *testing.T) {
 		t.Error("Expected error for non-admin user")
 	}
 
-	// Test with admin user (should create hardcoded test invoice due to empty credentials)
-	invoice, err := service.CreateUMARequest("$admin@example.com", 5000, "Admin invoice", true)
-	if err != nil {
-		t.Fatal("Failed to create admin UMA request:", err)
-	}
-
-	if invoice.AmountSats != 5000 {
-		t.Errorf("Expected amount 5000 sats, got %d", invoice.AmountSats)
-	}
-
-	if invoice.Status != "pending" {
-		t.Errorf("Expected status 'pending', got '%s'", invoice.Status)
+	// Test with admin user but no credentials (should fail)
+	_, err = service.CreateUMARequest("$admin@example.com", 5000, "Admin invoice", true)
+	if err == nil {
+		t.Error("Expected error for missing Lightspark credentials")
 	}
 
 	// Test invalid UMA address
@@ -106,52 +98,14 @@ func TestCreateTicketInvoice(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelWarn}))
 	service := NewLightsparkUMAService("", "", "", "", logger)
 
-	// Test valid ticket invoice creation
-	invoice, err := service.CreateTicketInvoice("$user@example.com", 2000, "Concert ticket")
-	if err != nil {
-		t.Fatal("Failed to create ticket invoice:", err)
-	}
-
-	if invoice.AmountSats != 2000 {
-		t.Errorf("Expected amount 2000 sats, got %d", invoice.AmountSats)
-	}
-
-	if invoice.Bolt11 == "" {
-		t.Error("Expected bolt11 invoice string")
+	// Test without credentials (should fail)
+	_, err := service.CreateTicketInvoice("$user@example.com", 2000, "Concert ticket")
+	if err == nil {
+		t.Error("Expected error for missing Lightspark credentials")
 	}
 
 	// Test invalid UMA address
 	_, err = service.CreateTicketInvoice("invalid", 1000, "Test")
-	if err == nil {
-		t.Error("Expected error for invalid UMA address")
-	}
-}
-
-// Test ChargeUMAAddress simulation
-func TestChargeUMAAddress(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelWarn}))
-	service := NewLightsparkUMAService("", "", "", "", logger)
-
-	// Test successful charge simulation
-	result, err := service.ChargeUMAAddress("$target@example.com", 3000, "Payment for services")
-	if err != nil {
-		t.Fatal("Failed to charge UMA address:", err)
-	}
-
-	if result.Status != "success" {
-		t.Errorf("Expected status 'success', got '%s'", result.Status)
-	}
-
-	if result.AmountSats != 3000 {
-		t.Errorf("Expected amount 3000 sats, got %d", result.AmountSats)
-	}
-
-	if result.PaymentID == "" {
-		t.Error("Expected payment ID to be set")
-	}
-
-	// Test invalid UMA address
-	_, err = service.ChargeUMAAddress("invalid", 1000, "Test")
 	if err == nil {
 		t.Error("Expected error for invalid UMA address")
 	}
@@ -278,77 +232,21 @@ func TestHelperMethods(t *testing.T) {
 	}
 }
 
-// Test createHardcodedTestInvoice
-func TestCreateHardcodedTestInvoice(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelWarn}))
-	service := &LightsparkUMAService{logger: logger}
-
-	invoice, err := service.createHardcodedTestInvoice(1000, "Test invoice")
-	if err != nil {
-		t.Fatal("Failed to create hardcoded test invoice:", err)
-	}
-
-	if invoice.AmountSats != 1000 {
-		t.Errorf("Expected amount 1000 sats, got %d", invoice.AmountSats)
-	}
-
-	if invoice.Status != "pending" {
-		t.Errorf("Expected status 'pending', got '%s'", invoice.Status)
-	}
-
-	if invoice.ExpiresAt == nil {
-		t.Error("Expected expiration time to be set")
-	}
-
-	// Check that expiration is approximately 1 hour from now
-	expectedExpiry := time.Now().Add(time.Hour)
-	timeDiff := invoice.ExpiresAt.Sub(expectedExpiry)
-	if timeDiff < -time.Minute || timeDiff > time.Minute {
-		t.Errorf("Expected expiry around %v, got %v", expectedExpiry, *invoice.ExpiresAt)
-	}
-
-	// Test bolt11 format (basic check)
-	if !containsString(invoice.Bolt11, "lntb") {
-		t.Error("Expected bolt11 to contain 'lntb' prefix")
-	}
-}
-
 // Test edge cases and error conditions
 func TestEdgeCases(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelWarn}))
 
-	// Test with zero amount
+	// Without credentials, all invoice creation should fail
 	service := NewLightsparkUMAService("", "", "", "", logger)
-	invoice, err := service.CreateTicketInvoice("$test@example.com", 0, "Free ticket")
-	if err != nil {
-		t.Fatal("Failed to create zero amount invoice:", err)
+
+	_, err := service.CreateTicketInvoice("$test@example.com", 0, "Free ticket")
+	if err == nil {
+		t.Error("Expected error for missing Lightspark credentials")
 	}
 
-	if invoice.AmountSats != 0 {
-		t.Errorf("Expected amount 0 sats, got %d", invoice.AmountSats)
-	}
-
-	// Test with very large amount
-	largeAmount := int64(21000000 * 100000000) // 21M BTC in sats
-	invoice, err = service.CreateTicketInvoice("$test@example.com", largeAmount, "Expensive ticket")
-	if err != nil {
-		t.Fatal("Failed to create large amount invoice:", err)
-	}
-
-	if invoice.AmountSats != largeAmount {
-		t.Errorf("Expected amount %d sats, got %d", largeAmount, invoice.AmountSats)
-	}
-
-	// Test with long description
-	longDescription := "A very long description that exceeds normal limits to test how the system handles large input strings without breaking or causing issues in the invoice creation process."
-
-	invoice, err = service.CreateTicketInvoice("$test@example.com", 1000, longDescription)
-	if err != nil {
-		t.Fatal("Failed to create invoice with long description:", err)
-	}
-
-	if invoice.AmountSats != 1000 {
-		t.Errorf("Expected amount 1000 sats, got %d", invoice.AmountSats)
+	_, err = service.CreateTicketInvoice("$test@example.com", 1000, "Test ticket")
+	if err == nil {
+		t.Error("Expected error for missing Lightspark credentials")
 	}
 }
 
@@ -365,16 +263,6 @@ func BenchmarkValidateUMAAddress(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		service.ValidateUMAAddress("$user@example.com")
-	}
-}
-
-func BenchmarkCreateHardcodedInvoice(b *testing.B) {
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelWarn}))
-	service := &LightsparkUMAService{logger: logger}
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		service.createHardcodedTestInvoice(1000, "Benchmark invoice")
 	}
 }
 
