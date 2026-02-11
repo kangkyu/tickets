@@ -278,60 +278,47 @@ func (s *LightsparkUMAService) HandleUMACallback(paymentHash string, status stri
 	return nil
 }
 
-// createOneTimeInvoice creates a one-time Lightning invoice using Lightspark SDK for UMA Request
+// createOneTimeInvoice creates a one-time Lightning invoice using Lightspark SDK
 func (s *LightsparkUMAService) createOneTimeInvoice(amountSats int64, description string) (*models.Invoice, error) {
 	if s.clientID == "" || s.clientSecret == "" || s.nodeID == "" {
 		return nil, fmt.Errorf("Lightspark credentials not configured")
 	}
 
-	// Convert sats to millisats
 	amountMsats := amountSats * 1000
 
-	s.logger.Info("Creating Lightspark testnet invoice",
+	s.logger.Info("Creating Lightning invoice",
 		"amount_sats", amountSats,
-		"amount_msats", amountMsats,
 		"description", description,
 		"node_id", s.nodeID)
 
-	s.logger.Info("Creating Lightspark testnet invoice via SDK",
-		"node_id", s.nodeID)
-
-	// Use the official SDK's CreateTestModeInvoice function
-	// Note: This function doesn't require context - it's handled internally by the SDK
-	bolt11, err := s.client.CreateTestModeInvoice(
-		s.nodeID,     // localNodeId: the id of the node that will pay the invoice
-		amountMsats,  // amountMsats: the amount of the invoice in millisatoshis
-		&description, // memo: the memo of the invoice
-		nil,          // invoiceType: the type of the invoice (nil for default)
+	invoice, err := s.client.CreateInvoice(
+		s.nodeID,
+		amountMsats,
+		&description,
+		nil, // invoiceType
+		nil, // expirySecs (default 1 day)
 	)
 	if err != nil {
-		s.logger.Error("Lightspark CreateTestModeInvoice failed", "error", err)
-		return nil, fmt.Errorf("failed to create Lightspark testnet invoice: %w", err)
+		s.logger.Error("Lightspark CreateInvoice failed", "error", err)
+		return nil, fmt.Errorf("failed to create Lightning invoice: %w", err)
 	}
 
-	if bolt11 == nil {
-		s.logger.Error("Received nil bolt11 from Lightspark")
+	if invoice == nil {
 		return nil, fmt.Errorf("received nil invoice from Lightspark")
 	}
 
-	// Generate unique invoice ID (since we don't get one back from CreateTestModeInvoice)
-	invoiceID := s.generateInvoiceID()
+	expiresAt := invoice.Data.ExpiresAt
 
-	// Generate payment hash
-	paymentHash := s.generatePaymentHash(invoiceID, amountSats)
-
-	// Set expiration to 1 hour from now
-	expiresAt := time.Now().Add(1 * time.Hour)
-
-	s.logger.Info("Successfully created UMA Request invoice",
-		"invoice_id", invoiceID,
+	s.logger.Info("Successfully created Lightning invoice",
+		"invoice_id", invoice.Id,
+		"payment_hash", invoice.Data.PaymentHash,
 		"amount_sats", amountSats,
 		"expires_at", expiresAt)
 
 	return &models.Invoice{
-		ID:          invoiceID,
-		PaymentHash: paymentHash,
-		Bolt11:      *bolt11,
+		ID:          invoice.Id,
+		PaymentHash: invoice.Data.PaymentHash,
+		Bolt11:      invoice.Data.EncodedPaymentRequest,
 		AmountSats:  amountSats,
 		Status:      "pending",
 		ExpiresAt:   &expiresAt,
