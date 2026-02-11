@@ -469,9 +469,10 @@ func (h *TicketHandlers) HandleGetUserTickets(w http.ResponseWriter, r *http.Req
 		// Add payment information if available
 		if payment != nil {
 			enrichedTicket["payment"] = map[string]interface{}{
-				"id":     payment.ID,
-				"status": payment.Status,
-				"amount": payment.Amount,
+				"id":          payment.ID,
+				"status":      payment.Status,
+				"amount_sats": payment.Amount,
+				"invoice_id":  payment.InvoiceID,
 			}
 		}
 
