@@ -59,4 +59,5 @@ type PaymentRepository interface {
 	UpdateStatus(id int, status string) error
 	GetPendingPayments() ([]models.Payment, error)
 	GetAvailablePaymentForEvent(eventID int) (*models.Payment, error)
+	GetOldestPendingByAmount(amountSats int64) (*models.Payment, error)
 }

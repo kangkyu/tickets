@@ -33,6 +33,7 @@ type Server struct {
 	eventHandlers   *apphandlers.EventHandlers
 	ticketHandlers  *apphandlers.TicketHandlers
 	paymentHandlers *apphandlers.PaymentHandlers
+	lnurlHandlers   *apphandlers.LnurlHandlers
 }
 
 func NewServer(db *sqlx.DB, logger *slog.Logger, config *config.Config) *Server {
@@ -59,6 +60,11 @@ func NewServer(db *sqlx.DB, logger *slog.Logger, config *config.Config) *Server 
 		config.LightsparkClientSecret,
 		config.LightsparkNodeID,
 		config.LightsparkNodePassword,
+		config.Domain,
+		config.UMASigningPrivKeyHex,
+		config.UMASigningCertChain,
+		config.UMAEncryptionPrivKeyHex,
+		config.UMAEncryptionCertChain,
 		logger,
 	)
 
@@ -94,6 +100,14 @@ func (s *Server) setupRoutes() {
 	// Health check endpoint
 	s.router.HandleFunc("/health", s.handleHealth).Methods("GET")
 
+	// LNURL-pay resolution endpoint for $tickets@fanmeeting.org
+	s.router.HandleFunc("/.well-known/lnurlp/tickets", s.lnurlHandlers.HandleLnurlPay).Methods("GET", "OPTIONS")
+
+	// UMA protocol endpoints
+	s.router.HandleFunc("/.well-known/lnurlpubkey", s.lnurlHandlers.HandlePubKeyRequest).Methods("GET", "OPTIONS")
+	s.router.HandleFunc("/.well-known/uma-configuration", s.lnurlHandlers.HandleUmaConfiguration).Methods("POST", "GET", "OPTIONS")
+	s.router.HandleFunc("/uma/payreq/{ticket_id:[0-9]+}", s.lnurlHandlers.HandleUmaPayreq).Methods("POST", "GET", "OPTIONS")
+
 	// API routes
 	api := s.router.PathPrefix("/api").Subrouter()
 
@@ -114,6 +128,9 @@ func (s *Server) setupRoutes() {
 	api.HandleFunc("/tickets/{id:[0-9]+}/status", s.ticketHandlers.HandleTicketStatus).Methods("GET", "OPTIONS")
 	api.HandleFunc("/tickets/validate", s.ticketHandlers.HandleValidateTicket).Methods("POST", "OPTIONS")
 	api.HandleFunc("/tickets/uma-callback", s.ticketHandlers.HandleUMAPaymentCallback).Methods("POST", "OPTIONS")
+
+	// LNURL-pay callback (no auth required - called by paying wallets)
+	api.HandleFunc("/lnurl/callback", s.lnurlHandlers.HandleLnurlCallback).Methods("GET", "OPTIONS")
 
 	// Payment webhook (no auth required)
 	api.HandleFunc("/webhooks/payment", s.paymentHandlers.HandlePaymentWebhook).Methods("POST", "OPTIONS")
@@ -158,8 +175,9 @@ func (s *Server) setupRoutes() {
 func (s *Server) initializeHandlers() {
 	s.userHandlers = apphandlers.NewUserHandlers(s.userRepo, s.logger, s.config.JWTSecret)
 	s.eventHandlers = apphandlers.NewEventHandlers(s.eventRepo, s.paymentRepo, s.ticketRepo, s.umaService, s.umaRepo, s.logger, s.config)
-	s.ticketHandlers = apphandlers.NewTicketHandlers(s.ticketRepo, s.eventRepo, s.paymentRepo, s.umaRepo, s.umaService, s.logger)
+	s.ticketHandlers = apphandlers.NewTicketHandlers(s.ticketRepo, s.eventRepo, s.paymentRepo, s.umaRepo, s.umaService, s.logger, s.config.Domain)
 	s.paymentHandlers = apphandlers.NewPaymentHandlers(s.paymentRepo, s.ticketRepo, s.umaService, s.lightsparkClient, s.logger)
+	s.lnurlHandlers = apphandlers.NewLnurlHandlers(s.paymentRepo, s.umaService, s.lightsparkClient, s.logger, s.config.Domain, s.config.LightsparkNodeID)
 }
 
 // CORS middleware

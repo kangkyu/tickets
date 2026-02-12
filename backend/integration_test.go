@@ -83,6 +83,24 @@ func (m *MockUMAService) CreateTicketInvoice(umaAddress string, amountSats int64
 	return m.CreateUMARequest(umaAddress, amountSats, description, false)
 }
 
+func (m *MockUMAService) SimulateIncomingPayment(bolt11 string) error {
+	m.logger.Info("Mock SimulateIncomingPayment called", "bolt11_prefix", bolt11[:20]+"...")
+	return nil
+}
+
+func (m *MockUMAService) SendUMARequest(buyerUMA string, amountSats int64, callbackURL string) error {
+	m.logger.Info("Mock SendUMARequest called", "buyer_uma", buyerUMA, "amount_sats", amountSats, "callback_url", callbackURL)
+	return nil
+}
+
+func (m *MockUMAService) GetUMASigningCertChain() string {
+	return ""
+}
+
+func (m *MockUMAService) GetUMAEncryptionCertChain() string {
+	return ""
+}
+
 func (m *MockUMAService) SendPaymentToInvoice(bolt11 string) (*models.PaymentResult, error) {
 	m.logger.Info("Mock SendPaymentToInvoice called", "bolt11", bolt11[:20]+"...")
 	return &models.PaymentResult{

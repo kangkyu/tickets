@@ -88,6 +88,30 @@ variable "webhook_signing_key" {
   sensitive   = true
 }
 
+variable "uma_signing_privkey" {
+  description = "UMA signing private key (hex)"
+  type        = string
+  sensitive   = true
+}
+
+variable "uma_signing_cert_chain" {
+  description = "UMA signing certificate chain (PEM)"
+  type        = string
+  sensitive   = true
+}
+
+variable "uma_encryption_privkey" {
+  description = "UMA encryption private key (hex)"
+  type        = string
+  sensitive   = true
+}
+
+variable "uma_encryption_cert_chain" {
+  description = "UMA encryption certificate chain (PEM)"
+  type        = string
+  sensitive   = true
+}
+
 variable "main_branch_name" {
   description = "Main branch name (e.g., master, main)"
   type        = string
@@ -414,6 +438,10 @@ resource "aws_ecs_task_definition" "backend" {
         {
           name  = "LIGHTSPARK_WEBHOOK_SIGNING_KEY"
           value = var.webhook_signing_key
+        },
+        {
+          name  = "DOMAIN"
+          value = var.domain_name
         }
       ]
 
@@ -433,6 +461,22 @@ resource "aws_ecs_task_definition" "backend" {
         {
           name      = "LIGHTSPARK_NODE_PASSWORD"
           valueFrom = aws_ssm_parameter.lightspark_node_password.arn
+        },
+        {
+          name      = "UMA_SIGNING_PRIVKEY"
+          valueFrom = aws_ssm_parameter.uma_signing_privkey.arn
+        },
+        {
+          name      = "UMA_SIGNING_CERT_CHAIN"
+          valueFrom = aws_ssm_parameter.uma_signing_cert_chain.arn
+        },
+        {
+          name      = "UMA_ENCRYPTION_PRIVKEY"
+          valueFrom = aws_ssm_parameter.uma_encryption_privkey.arn
+        },
+        {
+          name      = "UMA_ENCRYPTION_CERT_CHAIN"
+          valueFrom = aws_ssm_parameter.uma_encryption_cert_chain.arn
         }
       ]
 
@@ -600,7 +644,11 @@ resource "aws_iam_role_policy" "ecs_execution_ssm" {
           aws_ssm_parameter.lightspark_client_id.arn,
           aws_ssm_parameter.lightspark_client_secret.arn,
           aws_ssm_parameter.lightspark_node_id.arn,
-          aws_ssm_parameter.lightspark_node_password.arn
+          aws_ssm_parameter.lightspark_node_password.arn,
+          aws_ssm_parameter.uma_signing_privkey.arn,
+          aws_ssm_parameter.uma_signing_cert_chain.arn,
+          aws_ssm_parameter.uma_encryption_privkey.arn,
+          aws_ssm_parameter.uma_encryption_cert_chain.arn
         ]
       }
     ]
@@ -681,6 +729,50 @@ resource "aws_ssm_parameter" "lightspark_node_password" {
 
   tags = {
     Name        = "${var.app_name}-lightspark-node-password"
+    Environment = var.environment
+  }
+}
+
+resource "aws_ssm_parameter" "uma_signing_privkey" {
+  name  = "/${var.app_name}/uma/signing_privkey"
+  type  = "SecureString"
+  value = var.uma_signing_privkey
+
+  tags = {
+    Name        = "${var.app_name}-uma-signing-privkey"
+    Environment = var.environment
+  }
+}
+
+resource "aws_ssm_parameter" "uma_signing_cert_chain" {
+  name  = "/${var.app_name}/uma/signing_cert_chain"
+  type  = "SecureString"
+  value = var.uma_signing_cert_chain
+
+  tags = {
+    Name        = "${var.app_name}-uma-signing-cert-chain"
+    Environment = var.environment
+  }
+}
+
+resource "aws_ssm_parameter" "uma_encryption_privkey" {
+  name  = "/${var.app_name}/uma/encryption_privkey"
+  type  = "SecureString"
+  value = var.uma_encryption_privkey
+
+  tags = {
+    Name        = "${var.app_name}-uma-encryption-privkey"
+    Environment = var.environment
+  }
+}
+
+resource "aws_ssm_parameter" "uma_encryption_cert_chain" {
+  name  = "/${var.app_name}/uma/encryption_cert_chain"
+  type  = "SecureString"
+  value = var.uma_encryption_cert_chain
+
+  tags = {
+    Name        = "${var.app_name}-uma-encryption-cert-chain"
     Environment = var.environment
   }
 }

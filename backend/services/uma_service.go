@@ -1,15 +1,22 @@
 package services
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
+	"net/http"
+	"strings"
 	"time"
 
 	"github.com/lightsparkdev/go-sdk/objects"
 	"github.com/lightsparkdev/go-sdk/services"
+	"github.com/uma-universal-money-address/uma-go-sdk/uma"
+	umaprotocol "github.com/uma-universal-money-address/uma-go-sdk/uma/protocol"
 
 	"tickets-by-uma/models"
 )
@@ -18,35 +25,49 @@ import (
 type UMAService interface {
 	CreateUMARequest(umaAddress string, amountSats int64, description string, isAdmin bool) (*models.Invoice, error)
 	CreateTicketInvoice(umaAddress string, amountSats int64, description string) (*models.Invoice, error)
+	SimulateIncomingPayment(bolt11 string) error
+	SendUMARequest(buyerUMA string, amountSats int64, callbackURL string) error
 	SendPaymentToInvoice(bolt11 string) (*models.PaymentResult, error)
 	CheckPaymentStatus(invoiceID string) (*models.PaymentStatus, error)
 	GetNodeBalance() (*models.NodeBalance, error)
 	ValidateUMAAddress(address string) error
 	HandleUMACallback(paymentHash string, status string) error
+	GetUMASigningCertChain() string
+	GetUMAEncryptionCertChain() string
 }
 
 // LightsparkUMAService implements UMAService using real Lightning Network
 type LightsparkUMAService struct {
-	logger       *slog.Logger
-	nodeID       string
-	nodePassword string
-	clientID     string
-	clientSecret string
-	client       *services.LightsparkClient
+	logger                 *slog.Logger
+	nodeID                 string
+	nodePassword           string
+	clientID               string
+	clientSecret           string
+	client                 *services.LightsparkClient
+	domain                 string
+	umaSigningPrivKeyHex   string
+	umaSigningCertChain    string
+	umaEncryptionPrivKeyHex string
+	umaEncryptionCertChain  string
 }
 
 // NewLightsparkUMAService creates a new UMA service instance
-func NewLightsparkUMAService(clientID, clientSecret, nodeID, nodePassword string, logger *slog.Logger) UMAService {
+func NewLightsparkUMAService(clientID, clientSecret, nodeID, nodePassword, domain, umaSigningPrivKeyHex, umaSigningCertChain, umaEncryptionPrivKeyHex, umaEncryptionCertChain string, logger *slog.Logger) UMAService {
 	// Create Lightspark client - SDK handles endpoint internally
 	client := services.NewLightsparkClient(clientID, clientSecret, nil)
 
 	return &LightsparkUMAService{
-		logger:       logger,
-		nodeID:       nodeID,
-		nodePassword: nodePassword,
-		clientID:     clientID,
-		clientSecret: clientSecret,
-		client:       client,
+		logger:                  logger,
+		nodeID:                  nodeID,
+		nodePassword:            nodePassword,
+		clientID:                clientID,
+		clientSecret:            clientSecret,
+		client:                  client,
+		domain:                  domain,
+		umaSigningPrivKeyHex:    umaSigningPrivKeyHex,
+		umaSigningCertChain:     umaSigningCertChain,
+		umaEncryptionPrivKeyHex: umaEncryptionPrivKeyHex,
+		umaEncryptionCertChain:  umaEncryptionCertChain,
 	}
 }
 
@@ -128,6 +149,157 @@ func (s *LightsparkUMAService) CreateTicketInvoice(umaAddress string, amountSats
 
 	// Create one-time Lightning invoice for ticket purchase
 	return s.createOneTimeInvoice(amountSats, fmt.Sprintf("Ticket Purchase - %s", description))
+}
+
+// SimulateIncomingPayment uses CreateTestModePayment to simulate an external node
+// paying our invoice. This triggers the webhook with an IncomingPayment event,
+// just like a real buyer paying from their wallet would.
+func (s *LightsparkUMAService) SimulateIncomingPayment(bolt11 string) error {
+	s.logger.Info("Simulating incoming payment (test mode)", "bolt11_prefix", bolt11[:min(len(bolt11), 50)]+"...")
+
+	if s.nodeID == "" {
+		return fmt.Errorf("node ID not configured")
+	}
+
+	incomingPayment, err := s.client.CreateTestModePayment(s.nodeID, bolt11, nil)
+	if err != nil {
+		s.logger.Error("CreateTestModePayment failed", "error", err)
+		return fmt.Errorf("failed to simulate payment: %w", err)
+	}
+
+	s.logger.Info("Test mode payment simulated successfully",
+		"incoming_payment_id", incomingPayment.Id,
+		"amount", incomingPayment.Amount,
+		"is_uma", incomingPayment.IsUma)
+
+	return nil
+}
+
+// GetUMASigningCertChain returns the UMA signing certificate chain
+func (s *LightsparkUMAService) GetUMASigningCertChain() string {
+	return s.umaSigningCertChain
+}
+
+// GetUMAEncryptionCertChain returns the UMA encryption certificate chain
+func (s *LightsparkUMAService) GetUMAEncryptionCertChain() string {
+	return s.umaEncryptionCertChain
+}
+
+// SendUMARequest creates a UMA Invoice and sends it to the buyer's VASP via UMA Request protocol.
+// This pushes a payment request to the buyer's wallet (e.g. test.uma.me).
+func (s *LightsparkUMAService) SendUMARequest(buyerUMA string, amountSats int64, callbackURL string) error {
+	if s.umaSigningPrivKeyHex == "" {
+		return fmt.Errorf("UMA signing key not configured")
+	}
+
+	signingKey, err := hex.DecodeString(s.umaSigningPrivKeyHex)
+	if err != nil {
+		return fmt.Errorf("invalid UMA signing key: %w", err)
+	}
+
+	s.logger.Info("Sending UMA Request to buyer's VASP",
+		"buyer_uma", buyerUMA,
+		"amount_sats", amountSats,
+		"callback_url", callbackURL)
+
+	// Create UMA Invoice
+	twoDaysFromNow := time.Now().Add(48 * time.Hour)
+	receiverUMA := "$tickets@" + s.domain
+
+	invoice, err := uma.CreateUmaInvoice(
+		receiverUMA,
+		uint64(amountSats),
+		umaprotocol.InvoiceCurrency{
+			Code:     "SAT",
+			Decimals: 0,
+			Symbol:   "SAT",
+			Name:     "Satoshis",
+		},
+		uint64(twoDaysFromNow.Unix()),
+		callbackURL,
+		true, // isSubjectToTravelRule
+		nil,  // requiredPayerData
+		nil,  // commentLength
+		nil,  // senderUma
+		nil,  // invoiceLimit
+		&buyerUMA,
+		signingKey,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to create UMA invoice: %w", err)
+	}
+
+	invoiceString, err := invoice.ToBech32String()
+	if err != nil {
+		return fmt.Errorf("failed to encode UMA invoice: %w", err)
+	}
+
+	// Discover buyer's VASP domain
+	buyerVASPDomain, err := uma.GetVaspDomainFromUmaAddress(buyerUMA)
+	if err != nil {
+		return fmt.Errorf("failed to get VASP domain from %s: %w", buyerUMA, err)
+	}
+
+	// Determine scheme
+	scheme := "https://"
+	if strings.Contains(buyerVASPDomain, "localhost") {
+		scheme = "http://"
+	}
+
+	// Fetch VASP's UMA configuration to get uma_request_endpoint
+	configURL := scheme + buyerVASPDomain + "/.well-known/uma-configuration"
+	s.logger.Info("Fetching VASP configuration", "url", configURL)
+
+	resp, err := http.Get(configURL)
+	if err != nil {
+		return fmt.Errorf("failed to fetch VASP configuration from %s: %w", configURL, err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read VASP configuration response: %w", err)
+	}
+
+	var vaspConfig struct {
+		UMARequestEndpoint string `json:"uma_request_endpoint"`
+	}
+	if err := json.Unmarshal(body, &vaspConfig); err != nil {
+		return fmt.Errorf("failed to parse VASP configuration: %w", err)
+	}
+
+	if vaspConfig.UMARequestEndpoint == "" {
+		return fmt.Errorf("VASP at %s does not have a uma_request_endpoint", buyerVASPDomain)
+	}
+
+	s.logger.Info("Sending UMA invoice to VASP",
+		"endpoint", vaspConfig.UMARequestEndpoint,
+		"invoice_length", len(invoiceString))
+
+	// Send the invoice to the buyer's VASP
+	requestBody, err := json.Marshal(map[string]string{
+		"invoice": invoiceString,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to marshal invoice request: %w", err)
+	}
+
+	resp2, err := http.Post(vaspConfig.UMARequestEndpoint, "application/json", bytes.NewBuffer(requestBody))
+	if err != nil {
+		return fmt.Errorf("failed to send invoice to VASP: %w", err)
+	}
+	defer resp2.Body.Close()
+
+	if resp2.StatusCode != http.StatusOK {
+		respBody, _ := io.ReadAll(resp2.Body)
+		return fmt.Errorf("VASP rejected invoice (status %d): %s", resp2.StatusCode, string(respBody))
+	}
+
+	s.logger.Info("UMA Request sent successfully",
+		"buyer_uma", buyerUMA,
+		"vasp_domain", buyerVASPDomain)
+
+	return nil
 }
 
 // SendPaymentToInvoice pays a Lightning invoice using Lightspark SDK's PayUmaInvoice
@@ -278,7 +450,9 @@ func (s *LightsparkUMAService) HandleUMACallback(paymentHash string, status stri
 	return nil
 }
 
-// createOneTimeInvoice creates a one-time Lightning invoice using Lightspark SDK
+// createOneTimeInvoice creates a one-time LNURL Lightning invoice using Lightspark SDK.
+// Uses CreateLnurlInvoice so the bolt11 contains a description_hash that matches
+// the LNURL metadata, enabling payments via UMA/LNURL-pay resolution.
 func (s *LightsparkUMAService) createOneTimeInvoice(amountSats int64, description string) (*models.Invoice, error) {
 	if s.clientID == "" || s.clientSecret == "" || s.nodeID == "" {
 		return nil, fmt.Errorf("Lightspark credentials not configured")
@@ -286,20 +460,23 @@ func (s *LightsparkUMAService) createOneTimeInvoice(amountSats int64, descriptio
 
 	amountMsats := amountSats * 1000
 
-	s.logger.Info("Creating Lightning invoice",
+	// Format as LNURL metadata so the description_hash in the bolt11
+	// matches what LNURL-pay endpoints serve to paying wallets.
+	metadata := fmt.Sprintf(`[["text/plain","%s"]]`, description)
+
+	s.logger.Info("Creating LNURL Lightning invoice",
 		"amount_sats", amountSats,
 		"description", description,
 		"node_id", s.nodeID)
 
-	invoice, err := s.client.CreateInvoice(
+	invoice, err := s.client.CreateLnurlInvoice(
 		s.nodeID,
 		amountMsats,
-		&description,
-		nil, // invoiceType
+		metadata,
 		nil, // expirySecs (default 1 day)
 	)
 	if err != nil {
-		s.logger.Error("Lightspark CreateInvoice failed", "error", err)
+		s.logger.Error("Lightspark CreateLnurlInvoice failed", "error", err)
 		return nil, fmt.Errorf("failed to create Lightning invoice: %w", err)
 	}
 
@@ -309,7 +486,7 @@ func (s *LightsparkUMAService) createOneTimeInvoice(amountSats int64, descriptio
 
 	expiresAt := invoice.Data.ExpiresAt
 
-	s.logger.Info("Successfully created Lightning invoice",
+	s.logger.Info("Successfully created LNURL Lightning invoice",
 		"invoice_id", invoice.Id,
 		"payment_hash", invoice.Data.PaymentHash,
 		"amount_sats", amountSats,

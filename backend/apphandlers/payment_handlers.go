@@ -94,23 +94,76 @@ func (h *PaymentHandlers) handlePaymentFinished(entityID string) {
 		return
 	}
 
-	// Cast entity to OutgoingPayment
-	outgoingPayment, ok := (*entity).(objects.OutgoingPayment)
-	if !ok {
-		h.logger.Warn("Expected OutgoingPayment but got different type", "entity_id", entityID, "type", fmt.Sprintf("%T", *entity))
+	h.logger.Info("Processing payment entity", "entity_id", entityID, "type", fmt.Sprintf("%T", *entity))
+
+	// Try IncomingPayment first (when someone pays our invoice from their wallet)
+	if incomingPayment, ok := (*entity).(objects.IncomingPayment); ok {
+		h.handleIncomingPayment(entityID, incomingPayment)
 		return
 	}
 
-	h.logger.Info("Processing payment entity", "entity_id", entityID, "type", fmt.Sprintf("%T", *entity))
+	// Try OutgoingPayment (for backwards compatibility / self-pay scenarios)
+	if outgoingPayment, ok := (*entity).(objects.OutgoingPayment); ok {
+		h.handleOutgoingPayment(entityID, outgoingPayment)
+		return
+	}
 
-	// Get payment status
-	paymentStatus := outgoingPayment.GetStatus()
+	h.logger.Warn("Entity is neither IncomingPayment nor OutgoingPayment",
+		"entity_id", entityID, "type", fmt.Sprintf("%T", *entity))
+}
 
-	// Extract invoice ID from the OutgoingPayment
-	var invoiceID string
+// handleIncomingPayment processes a payment received on our node (someone paid our invoice).
+func (h *PaymentHandlers) handleIncomingPayment(entityID string, incomingPayment objects.IncomingPayment) {
+	h.logger.Info("Processing incoming payment",
+		"entity_id", entityID,
+		"amount", incomingPayment.Amount,
+		"is_uma", incomingPayment.IsUma)
+
+	// Get the PaymentRequest (Invoice) reference from the IncomingPayment
+	if incomingPayment.PaymentRequest == nil {
+		h.logger.Error("IncomingPayment has no PaymentRequest (keysend payment?)", "entity_id", entityID)
+		return
+	}
+
+	invoiceEntityID := incomingPayment.PaymentRequest.Id
+	h.logger.Info("Fetching invoice for incoming payment", "invoice_entity_id", invoiceEntityID)
+
+	// Fetch the full Invoice entity to get the bolt11
+	invoiceEntity, err := h.client.GetEntity(invoiceEntityID)
+	if err != nil {
+		h.logger.Error("Failed to fetch invoice entity", "invoice_id", invoiceEntityID, "error", err)
+		return
+	}
+
+	if invoiceEntity == nil {
+		h.logger.Error("Invoice entity not found", "invoice_id", invoiceEntityID)
+		return
+	}
+
+	invoice, ok := (*invoiceEntity).(objects.Invoice)
+	if !ok {
+		h.logger.Error("Entity is not an Invoice", "invoice_id", invoiceEntityID, "type", fmt.Sprintf("%T", *invoiceEntity))
+		return
+	}
+
+	bolt11 := invoice.Data.EncodedPaymentRequest
+	h.logger.Info("Extracted bolt11 from invoice",
+		"invoice_id", invoiceEntityID,
+		"bolt11_prefix", bolt11[:min(len(bolt11), 50)]+"...")
+
+	// Match the bolt11 to our payment record in the database
+	h.markPaymentPaid(bolt11)
+}
+
+// handleOutgoingPayment processes an outgoing payment (backwards compatibility).
+func (h *PaymentHandlers) handleOutgoingPayment(entityID string, outgoingPayment objects.OutgoingPayment) {
+	h.logger.Info("Processing outgoing payment", "entity_id", entityID)
+
+	// Extract bolt11 from the OutgoingPayment
+	var bolt11 string
 	if outgoingPayment.PaymentRequestData != nil {
 		if encodedReq, ok := (*outgoingPayment.PaymentRequestData).(objects.InvoiceData); ok {
-			invoiceID = encodedReq.GetEncodedPaymentRequest()
+			bolt11 = encodedReq.GetEncodedPaymentRequest()
 		} else {
 			h.logger.Warn("PaymentRequestData doesn't implement InvoiceData")
 		}
@@ -118,32 +171,37 @@ func (h *PaymentHandlers) handlePaymentFinished(entityID string) {
 		h.logger.Warn("PaymentRequestData is nil")
 	}
 
-	if invoiceID == "" {
-		h.logger.Error("Could not extract invoice ID from OutgoingPayment", "entity_id", entityID)
+	if bolt11 == "" {
+		h.logger.Error("Could not extract bolt11 from OutgoingPayment", "entity_id", entityID)
 		return
 	}
 
 	h.logger.Info("Processing outgoing payment",
-		"invoice_id", invoiceID,
-		"status", paymentStatus,
+		"bolt11_prefix", bolt11[:min(len(bolt11), 50)]+"...",
+		"status", outgoingPayment.GetStatus(),
 		"amount", outgoingPayment.GetAmount())
 
-	// Get payment record by bolt11 (since invoiceID is our internal ID, not what Lightspark knows)
-	payment, err := h.paymentRepo.GetByInvoiceID(invoiceID)
+	h.markPaymentPaid(bolt11)
+}
+
+// markPaymentPaid looks up a payment by bolt11 and marks it and its ticket as paid.
+func (h *PaymentHandlers) markPaymentPaid(bolt11 string) {
+	payment, err := h.paymentRepo.GetByInvoiceID(bolt11)
 	if err != nil {
-		h.logger.Error("Failed to fetch payment", "invoice_id", invoiceID, "error", err)
+		h.logger.Error("Failed to fetch payment by bolt11", "error", err)
 		return
 	}
 
 	if payment == nil {
-		h.logger.Error("Payment not found in database", "invoice_id", invoiceID)
+		h.logger.Error("Payment not found in database for bolt11",
+			"bolt11_prefix", bolt11[:min(len(bolt11), 50)]+"...")
 		return
 	}
 
-	status := "paid" // Payment finished means it was successful
+	status := "paid"
+	oldStatus := payment.Status
 
 	// Update payment status
-	oldStatus := payment.Status
 	if err := h.paymentRepo.UpdateStatus(payment.ID, status); err != nil {
 		h.logger.Error("Failed to update payment status", "payment_id", payment.ID, "error", err)
 		return
@@ -156,14 +214,13 @@ func (h *PaymentHandlers) handlePaymentFinished(entityID string) {
 	}
 
 	// Process UMA callback
-	if err := h.umaService.HandleUMACallback(invoiceID, status); err != nil {
-		h.logger.Error("Failed to process UMA callback", "invoice_id", invoiceID, "error", err)
-		// Don't fail the webhook for UMA callback errors
+	if err := h.umaService.HandleUMACallback(bolt11, status); err != nil {
+		h.logger.Error("Failed to process UMA callback", "error", err)
 	}
 
-	h.logger.Info("Payment finished processed successfully",
+	h.logger.Info("Payment marked as paid successfully",
 		"payment_id", payment.ID,
-		"invoice_id", invoiceID,
+		"ticket_id", payment.TicketID,
 		"old_status", oldStatus,
 		"new_status", status)
 }
@@ -368,10 +425,3 @@ func (h *PaymentHandlers) HandleRetryPayment(w http.ResponseWriter, r *http.Requ
 	})
 }
 
-// min returns the minimum of two integers
-func smaller(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}

@@ -23,6 +23,7 @@ type TicketHandlers struct {
 	umaRepo     repositories.UMARequestInvoiceRepository
 	umaService  services.UMAService
 	logger      *slog.Logger
+	domain      string
 }
 
 func NewTicketHandlers(
@@ -32,6 +33,7 @@ func NewTicketHandlers(
 	umaRepo repositories.UMARequestInvoiceRepository,
 	umaService services.UMAService,
 	logger *slog.Logger,
+	domain string,
 ) *TicketHandlers {
 	return &TicketHandlers{
 		ticketRepo:  ticketRepo,
@@ -40,6 +42,7 @@ func NewTicketHandlers(
 		umaRepo:     umaRepo,
 		umaService:  umaService,
 		logger:      logger,
+		domain:      domain,
 	}
 }
 
@@ -196,10 +199,24 @@ func (h *TicketHandlers) HandlePurchaseTicket(w http.ResponseWriter, r *http.Req
 			h.logger.Error("Failed to update ticket invoice_id", "ticket_id", ticket.ID, "error", err)
 		}
 
-		h.logger.Info("Ticket created with per-ticket invoice — waiting for buyer payment",
+		h.logger.Info("Ticket created with per-ticket invoice",
 			"ticket_id", ticket.ID,
 			"invoice_id", invoice.ID,
 			"uma_address", req.UMAAddress)
+
+		// Send UMA Request to buyer's VASP (e.g. test.uma.me).
+		// The callback URL points to our /uma/payreq/{ticket_id} endpoint.
+		callbackURL := fmt.Sprintf("https://api.%s/uma/payreq/%d", h.domain, ticket.ID)
+		go func() {
+			if err := h.umaService.SendUMARequest(req.UMAAddress, event.PriceSats, callbackURL); err != nil {
+				h.logger.Warn("SendUMARequest failed, falling back to SimulateIncomingPayment",
+					"ticket_id", ticket.ID, "error", err)
+				// Fall back to test mode simulation when UMA Request isn't available
+				if err := h.umaService.SimulateIncomingPayment(invoice.Bolt11); err != nil {
+					h.logger.Error("SimulateIncomingPayment also failed", "ticket_id", ticket.ID, "error", err)
+				}
+			}
+		}()
 	}
 
 	// Return ticket and event information

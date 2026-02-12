@@ -15,6 +15,10 @@ type Config struct {
 	JWTSecret              string
 	AdminEmails            []string
 	Domain                 string
+	UMASigningPrivKeyHex    string
+	UMASigningCertChain     string
+	UMAEncryptionPrivKeyHex string
+	UMAEncryptionCertChain  string
 }
 
 func LoadConfig() *Config {
@@ -26,8 +30,12 @@ func LoadConfig() *Config {
 		LightsparkNodeID:       getEnv("LIGHTSPARK_NODE_ID", ""),
 		LightsparkNodePassword: getEnv("LIGHTSPARK_NODE_PASSWORD", ""),
 		JWTSecret:              getEnv("JWT_SECRET", "your-secret-key-change-in-production"),
-		AdminEmails:            strings.Split(getEnv("ADMIN_EMAILS", "admin@example.com"), ","),
-		Domain:                 getEnv("DOMAIN", "localhost"),
+		AdminEmails:             strings.Split(getEnv("ADMIN_EMAILS", "admin@example.com"), ","),
+		Domain:                  getEnv("DOMAIN", "localhost"),
+		UMASigningPrivKeyHex:    getEnv("UMA_SIGNING_PRIVKEY", ""),
+		UMASigningCertChain:     getEnv("UMA_SIGNING_CERT_CHAIN", ""),
+		UMAEncryptionPrivKeyHex: getEnv("UMA_ENCRYPTION_PRIVKEY", ""),
+		UMAEncryptionCertChain:  getEnv("UMA_ENCRYPTION_CERT_CHAIN", ""),
 	}
 }
 
