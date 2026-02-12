@@ -847,6 +847,22 @@ resource "aws_amplify_branch" "main" {
   }
 }
 
+# Amplify custom domain
+resource "aws_amplify_domain_association" "frontend" {
+  app_id      = aws_amplify_app.frontend.id
+  domain_name = var.domain_name
+
+  sub_domain {
+    branch_name = aws_amplify_branch.main.branch_name
+    prefix      = ""
+  }
+
+  sub_domain {
+    branch_name = aws_amplify_branch.main.branch_name
+    prefix      = "www"
+  }
+}
+
 # ACM certificate for ALB
 resource "aws_acm_certificate" "alb" {
   domain_name       = "api.${var.domain_name}"

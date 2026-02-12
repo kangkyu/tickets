@@ -312,20 +312,11 @@ const TicketList = () => {
                           <Clock className="w-5 h-5 text-yellow-600 mx-auto mb-2" />
                           <p className="text-sm text-yellow-800 font-medium">Payment Pending</p>
 
-                          {/* UMA Payment Address - for UMA wallets like test.uma.me */}
+                          {/* UMA Request - payment request sent to buyer's wallet */}
                           <div className="mt-3 p-3 bg-white border border-yellow-300 rounded-lg">
-                            <p className="text-xs text-gray-500 mb-1">Send from your UMA wallet to:</p>
-                            <p className="text-sm font-mono font-bold text-gray-900">
-                              $tickets@fanmeeting.org
+                            <p className="text-xs text-gray-500">
+                              A payment request has been sent to your UMA wallet. Please check your wallet to approve the payment.
                             </p>
-                            <button
-                              onClick={() => {
-                                navigator.clipboard.writeText('$tickets@fanmeeting.org')
-                              }}
-                              className="mt-1 text-xs text-uma-600 hover:text-uma-800 font-medium"
-                            >
-                              Copy Address
-                            </button>
                           </div>
 
                           {ticket.payment?.amount_sats > 0 && (
