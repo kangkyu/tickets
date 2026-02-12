@@ -10,7 +10,7 @@ import (
 // Test UMA Service with mock implementation
 func TestUMAServiceValidation(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelWarn}))
-	service := NewLightsparkUMAService("", "", "", "", logger)
+	service := NewLightsparkUMAService("", "", "", "", "", "", "", "", "", logger)
 
 	tests := []struct {
 		name    string
@@ -72,7 +72,7 @@ func TestUMAServiceValidation(t *testing.T) {
 // Test CreateUMARequest with admin permissions
 func TestCreateUMARequest(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelWarn}))
-	service := NewLightsparkUMAService("", "", "", "", logger)
+	service := NewLightsparkUMAService("", "", "", "", "", "", "", "", "", logger)
 
 	// Test admin-only restriction
 	_, err := service.CreateUMARequest("$test@example.com", 1000, "Test invoice", false)
@@ -96,7 +96,7 @@ func TestCreateUMARequest(t *testing.T) {
 // Test CreateTicketInvoice (public access)
 func TestCreateTicketInvoice(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelWarn}))
-	service := NewLightsparkUMAService("", "", "", "", logger)
+	service := NewLightsparkUMAService("", "", "", "", "", "", "", "", "", logger)
 
 	// Test without credentials (should fail)
 	_, err := service.CreateTicketInvoice("$user@example.com", 2000, "Concert ticket")
@@ -116,7 +116,7 @@ func TestGetNodeBalance(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelWarn}))
 
 	// Test without credentials (should return mock balance)
-	service := NewLightsparkUMAService("", "", "", "", logger)
+	service := NewLightsparkUMAService("", "", "", "", "", "", "", "", "", logger)
 	balance, err := service.GetNodeBalance()
 	if err != nil {
 		t.Fatal("Failed to get node balance:", err)
@@ -131,7 +131,7 @@ func TestGetNodeBalance(t *testing.T) {
 	}
 
 	// Test with fake credentials (should fail with auth error from Lightspark API)
-	serviceWithCreds := NewLightsparkUMAService("test-client", "test-secret", "test-node", "test-password", logger)
+	serviceWithCreds := NewLightsparkUMAService("test-client", "test-secret", "test-node", "test-password", "", "", "", "", "", logger)
 	_, err = serviceWithCreds.GetNodeBalance()
 	if err == nil {
 		t.Error("Expected error when using fake credentials, got nil")
@@ -141,7 +141,7 @@ func TestGetNodeBalance(t *testing.T) {
 // Test CheckPaymentStatus
 func TestCheckPaymentStatus(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelWarn}))
-	service := NewLightsparkUMAService("", "", "", "", logger)
+	service := NewLightsparkUMAService("", "", "", "", "", "", "", "", "", logger)
 
 	// Test unimplemented payment status check
 	_, err := service.CheckPaymentStatus("test-invoice-123")
@@ -158,7 +158,7 @@ func TestCheckPaymentStatus(t *testing.T) {
 // Test HandleUMACallback
 func TestHandleUMACallback(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelWarn}))
-	service := NewLightsparkUMAService("", "", "", "", logger)
+	service := NewLightsparkUMAService("", "", "", "", "", "", "", "", "", logger)
 
 	// Test different callback statuses
 	testCases := []string{"paid", "expired", "failed", "unknown"}
@@ -233,7 +233,7 @@ func TestEdgeCases(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelWarn}))
 
 	// Without credentials, all invoice creation should fail
-	service := NewLightsparkUMAService("", "", "", "", logger)
+	service := NewLightsparkUMAService("", "", "", "", "", "", "", "", "", logger)
 
 	_, err := service.CreateTicketInvoice("$test@example.com", 0, "Free ticket")
 	if err == nil {
@@ -254,7 +254,7 @@ func containsString(s, substr string) bool {
 // Benchmark tests
 func BenchmarkValidateUMAAddress(b *testing.B) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelWarn}))
-	service := NewLightsparkUMAService("", "", "", "", logger)
+	service := NewLightsparkUMAService("", "", "", "", "", "", "", "", "", logger)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {

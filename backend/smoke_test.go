@@ -41,7 +41,7 @@ func TestBasicStructures(t *testing.T) {
 // TestUMAServiceCreation tests that we can create a UMA service
 func TestUMAServiceCreation(t *testing.T) {
 	// This should not panic
-	service := services.NewLightsparkUMAService("", "", "", "", nil)
+	service := services.NewLightsparkUMAService("", "", "", "", "", "", "", "", "", nil)
 
 	if service == nil {
 		t.Error("Expected service to be created")
