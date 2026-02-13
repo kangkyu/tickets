@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { ArrowLeft, User, Mail, Zap, CheckCircle, AlertCircle, Wallet } from 'lucide-react'
-import { UmaConnectButton, useOAuth } from '@uma-sdk/uma-auth-client'
+import { UmaConnectButton } from '@uma-sdk/uma-auth-client'
 import { useEvent } from '../hooks/useEvents'
 import { useAuth } from '../contexts/AuthContext'
 import { formatPrice, formatSatsToUSD } from '../utils/formatters'
@@ -21,39 +21,25 @@ const TicketPurchase = () => {
   const [walletConnected, setWalletConnected] = useState(false)
   const [walletError, setWalletError] = useState(null)
 
-  // UMA Auth OAuth hook - provides NWC connection URI after wallet connect
-  const { nwcConnectionUri } = useOAuth()
-
-  // Send NWC connection URI to backend when obtained
-  const storeNWCConnection = useCallback(async (uri) => {
+  // Check if user already has a wallet connection stored
+  const { token } = useAuth()
+  const checkWalletConnection = useCallback(async () => {
+    if (!token) return
     try {
       const response = await fetch(`${config.apiUrl}/api/users/me/nwc-connection`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}`
-        },
-        body: JSON.stringify({ nwc_connection_uri: uri })
+        headers: { 'Authorization': `Bearer ${token}` }
       })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.message || 'Failed to store wallet connection')
+      if (response.ok) {
+        setWalletConnected(true)
       }
-
-      setWalletConnected(true)
-      setWalletError(null)
     } catch (error) {
-      console.error('Failed to store NWC connection:', error)
-      setWalletError(error.message)
+      // No connection stored, that's fine
     }
-  }, [])
+  }, [token])
 
   useEffect(() => {
-    if (nwcConnectionUri) {
-      storeNWCConnection(nwcConnectionUri)
-    }
-  }, [nwcConnectionUri, storeNWCConnection])
+    checkWalletConnection()
+  }, [checkWalletConnection])
 
   // Get event data
   const { data: event, isLoading: eventLoading, error: eventError } = useEvent(eventId)

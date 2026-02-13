@@ -143,6 +143,7 @@ func (s *Server) setupRoutes() {
 
 	// Protected user routes
 	protected.HandleFunc("/users/me", s.userHandlers.HandleGetCurrentUser).Methods("GET", "OPTIONS")
+	protected.HandleFunc("/users/me/nwc-connection", s.userHandlers.HandleGetNWCConnection).Methods("GET", "OPTIONS")
 	protected.HandleFunc("/users/me/nwc-connection", s.userHandlers.HandleStoreNWCConnection).Methods("POST", "OPTIONS")
 	protected.HandleFunc("/users/{id:[0-9]+}", s.userHandlers.HandleUpdateUser).Methods("PUT", "OPTIONS")
 	protected.HandleFunc("/users/{id:[0-9]+}", s.userHandlers.HandleDeleteUser).Methods("DELETE", "OPTIONS")

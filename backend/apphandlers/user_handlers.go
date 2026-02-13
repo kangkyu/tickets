@@ -356,6 +356,30 @@ func (h *UserHandlers) HandleStoreNWCConnection(w http.ResponseWriter, r *http.R
 	})
 }
 
+// HandleGetNWCConnection checks if the authenticated user has a stored NWC connection
+func (h *UserHandlers) HandleGetNWCConnection(w http.ResponseWriter, r *http.Request) {
+	user := middleware.GetUserFromContext(r.Context())
+	if user == nil {
+		middleware.WriteError(w, http.StatusUnauthorized, "User not authenticated")
+		return
+	}
+
+	conn, err := h.nwcRepo.GetByUserID(user.ID)
+	if err != nil {
+		middleware.WriteError(w, http.StatusNotFound, "No wallet connection found")
+		return
+	}
+
+	middleware.WriteJSON(w, http.StatusOK, models.SuccessResponse{
+		Message: "Wallet connection found",
+		Data: map[string]interface{}{
+			"connected":  conn != nil,
+			"expires_at": conn.ExpiresAt,
+			"created_at": conn.CreatedAt,
+		},
+	})
+}
+
 // validateCreateUserRequest validates the create user request
 func (h *UserHandlers) validateCreateUserRequest(req *models.CreateUserRequest) error {
 	if req.Email == "" {

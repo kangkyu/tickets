@@ -1,5 +1,7 @@
+import { useEffect, useCallback } from 'react'
 import { Routes, Route } from 'react-router-dom'
-import { AuthProvider } from './contexts/AuthContext'
+import { useOAuth } from '@uma-sdk/uma-auth-client'
+import { AuthProvider, useAuth } from './contexts/AuthContext'
 import Layout from './components/Layout'
 import EventList from './components/EventList'
 import EventDetails from './components/EventDetails'
@@ -11,12 +13,42 @@ import AdminRoute from './components/AdminRoute'
 import AdminDashboard from './components/AdminDashboard'
 import CreateEvent from './components/CreateEvent'
 import EditEvent from './components/EditEvent'
+import config from './config/api'
 
+// Captures NWC connection URI from OAuth redirect on any page
+function NWCConnectionHandler({ children }) {
+  const { nwcConnectionUri } = useOAuth()
+  const { token } = useAuth()
 
+  const storeNWCConnection = useCallback(async (uri) => {
+    if (!token) return
+    try {
+      await fetch(`${config.apiUrl}/api/users/me/nwc-connection`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ nwc_connection_uri: uri })
+      })
+    } catch (error) {
+      console.error('Failed to store NWC connection:', error)
+    }
+  }, [token])
+
+  useEffect(() => {
+    if (nwcConnectionUri) {
+      storeNWCConnection(nwcConnectionUri)
+    }
+  }, [nwcConnectionUri, storeNWCConnection])
+
+  return children
+}
 
 function App() {
   return (
     <AuthProvider>
+      <NWCConnectionHandler>
       <Layout>
 
           <Routes>
@@ -55,6 +87,7 @@ function App() {
             } />
           </Routes>
       </Layout>
+      </NWCConnectionHandler>
     </AuthProvider>
   )
 }
