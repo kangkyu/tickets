@@ -1,11 +1,16 @@
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
-import { ArrowLeft, User, Mail, Zap, CheckCircle, AlertCircle } from 'lucide-react'
+import { ArrowLeft, User, Mail, Zap, CheckCircle, AlertCircle, Wallet } from 'lucide-react'
+import { UmaConnectButton, useOAuth } from '@uma-sdk/uma-auth-client'
 import { useEvent } from '../hooks/useEvents'
 import { useAuth } from '../contexts/AuthContext'
 import { formatPrice, formatSatsToUSD } from '../utils/formatters'
 import config from '../config/api'
+
+const UMA_AUTH_APP_IDENTITY_PUBKEY = import.meta.env.VITE_UMA_AUTH_APP_IDENTITY_PUBKEY || ''
+const UMA_AUTH_NOSTR_RELAY = import.meta.env.VITE_UMA_AUTH_NOSTR_RELAY || 'wss://nos.lol'
+const UMA_AUTH_REDIRECT_URI = import.meta.env.VITE_UMA_AUTH_REDIRECT_URI || window.location.origin
 
 const TicketPurchase = () => {
   const { eventId } = useParams()
@@ -13,7 +18,43 @@ const TicketPurchase = () => {
   const [currentStep, setCurrentStep] = useState(1)
   const [isCreatingPayment, setIsCreatingPayment] = useState(false)
   const [paymentError, setPaymentError] = useState(null)
-  
+  const [walletConnected, setWalletConnected] = useState(false)
+  const [walletError, setWalletError] = useState(null)
+
+  // UMA Auth OAuth hook - provides NWC connection URI after wallet connect
+  const { nwcConnectionUri } = useOAuth()
+
+  // Send NWC connection URI to backend when obtained
+  const storeNWCConnection = useCallback(async (uri) => {
+    try {
+      const response = await fetch(`${config.apiUrl}/api/users/me/nwc-connection`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+        },
+        body: JSON.stringify({ nwc_connection_uri: uri })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.message || 'Failed to store wallet connection')
+      }
+
+      setWalletConnected(true)
+      setWalletError(null)
+    } catch (error) {
+      console.error('Failed to store NWC connection:', error)
+      setWalletError(error.message)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (nwcConnectionUri) {
+      storeNWCConnection(nwcConnectionUri)
+    }
+  }, [nwcConnectionUri, storeNWCConnection])
+
   // Get event data
   const { data: event, isLoading: eventLoading, error: eventError } = useEvent(eventId)
   
@@ -357,6 +398,47 @@ const TicketPurchase = () => {
                     </p>
                   </div>
                 </div>
+
+                {/* Wallet Connect */}
+                {event.price_sats > 0 && (
+                  <div className="space-y-4">
+                    <h3 className="text-lg font-medium text-gray-900">Connect Wallet</h3>
+                    <p className="text-sm text-gray-600">
+                      Connect your UMA wallet to enable automatic payment when purchasing tickets.
+                    </p>
+
+                    {walletConnected ? (
+                      <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-lg">
+                        <CheckCircle className="w-5 h-5 text-green-500" />
+                        <span className="text-green-700 font-medium">Wallet Connected</span>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {UMA_AUTH_APP_IDENTITY_PUBKEY ? (
+                          <UmaConnectButton
+                            app-identity-pubkey={UMA_AUTH_APP_IDENTITY_PUBKEY}
+                            nostr-relay={UMA_AUTH_NOSTR_RELAY}
+                            redirect-uri={UMA_AUTH_REDIRECT_URI}
+                            required-commands={['pay_invoice']}
+                            budget-amount="100000"
+                            budget-currency="SAT"
+                            budget-period="monthly"
+                          />
+                        ) : (
+                          <div className="flex items-center gap-2 p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                            <Wallet className="w-5 h-5 text-gray-400" />
+                            <span className="text-gray-500 text-sm">
+                              Wallet connect not configured. Payment will be requested via UMA.
+                            </span>
+                          </div>
+                        )}
+                        {walletError && (
+                          <p className="text-sm text-red-600">{walletError}</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Payment Error */}
                 {paymentError && (

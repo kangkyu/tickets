@@ -180,6 +180,40 @@ ALTER SEQUENCE public.uma_request_invoices_id_seq OWNED BY public.uma_request_in
 
 
 --
+-- Name: nwc_connections; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.nwc_connections (
+    id integer NOT NULL,
+    user_id integer NOT NULL,
+    connection_uri text NOT NULL,
+    expires_at timestamp without time zone,
+    created_at timestamp without time zone DEFAULT now(),
+    updated_at timestamp without time zone DEFAULT now()
+);
+
+
+--
+-- Name: nwc_connections_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.nwc_connections_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: nwc_connections_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.nwc_connections_id_seq OWNED BY public.nwc_connections.id;
+
+
+--
 -- Name: users; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -244,6 +278,13 @@ ALTER TABLE ONLY public.uma_request_invoices ALTER COLUMN id SET DEFAULT nextval
 -- Name: users id; Type: DEFAULT; Schema: public; Owner: -
 --
 
+ALTER TABLE ONLY public.nwc_connections ALTER COLUMN id SET DEFAULT nextval('public.nwc_connections_id_seq'::regclass);
+
+
+--
+-- Name: users id; Type: DEFAULT; Schema: public; Owner: -
+--
+
 ALTER TABLE ONLY public.users ALTER COLUMN id SET DEFAULT nextval('public.users_id_seq'::regclass);
 
 
@@ -301,6 +342,22 @@ ALTER TABLE ONLY public.uma_request_invoices
 
 ALTER TABLE ONLY public.uma_request_invoices
     ADD CONSTRAINT uma_request_invoices_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: users users_email_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.nwc_connections
+    ADD CONSTRAINT nwc_connections_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: nwc_connections nwc_connections_user_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.nwc_connections
+    ADD CONSTRAINT nwc_connections_user_id_key UNIQUE (user_id);
 
 
 --
@@ -427,6 +484,14 @@ ALTER TABLE ONLY public.uma_request_invoices
 
 ALTER TABLE ONLY public.uma_request_invoices
     ADD CONSTRAINT uma_request_invoices_ticket_id_fkey FOREIGN KEY (ticket_id) REFERENCES public.tickets(id);
+
+
+--
+-- Name: nwc_connections nwc_connections_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.nwc_connections
+    ADD CONSTRAINT nwc_connections_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id);
 
 
 --

@@ -21,6 +21,7 @@ type TicketHandlers struct {
 	eventRepo   repositories.EventRepository
 	paymentRepo repositories.PaymentRepository
 	umaRepo     repositories.UMARequestInvoiceRepository
+	nwcRepo     repositories.NWCConnectionRepository
 	umaService  services.UMAService
 	logger      *slog.Logger
 	domain      string
@@ -31,6 +32,7 @@ func NewTicketHandlers(
 	eventRepo repositories.EventRepository,
 	paymentRepo repositories.PaymentRepository,
 	umaRepo repositories.UMARequestInvoiceRepository,
+	nwcRepo repositories.NWCConnectionRepository,
 	umaService services.UMAService,
 	logger *slog.Logger,
 	domain string,
@@ -40,6 +42,7 @@ func NewTicketHandlers(
 		eventRepo:   eventRepo,
 		paymentRepo: paymentRepo,
 		umaRepo:     umaRepo,
+		nwcRepo:     nwcRepo,
 		umaService:  umaService,
 		logger:      logger,
 		domain:      domain,
@@ -204,17 +207,31 @@ func (h *TicketHandlers) HandlePurchaseTicket(w http.ResponseWriter, r *http.Req
 			"invoice_id", invoice.ID,
 			"uma_address", req.UMAAddress)
 
-		// Send UMA Request to buyer's VASP (e.g. test.uma.me).
-		// The callback URL points to our /uma/payreq/{ticket_id} endpoint.
-		callbackURL := fmt.Sprintf("https://api.%s/uma/payreq/%d", h.domain, ticket.ID)
+		// Pay the invoice: try NWC first, then SendUMARequest
 		go func() {
-			if err := h.umaService.SendUMARequest(req.UMAAddress, event.PriceSats, callbackURL); err != nil {
-				h.logger.Warn("SendUMARequest failed, falling back to SimulateIncomingPayment",
-					"ticket_id", ticket.ID, "error", err)
-				// Fall back to test mode simulation when UMA Request isn't available
-				if err := h.umaService.SimulateIncomingPayment(invoice.Bolt11); err != nil {
-					h.logger.Error("SimulateIncomingPayment also failed", "ticket_id", ticket.ID, "error", err)
+			// Look up user's NWC connection
+			nwcConn, err := h.nwcRepo.GetByUserID(req.UserID)
+			if err != nil {
+				h.logger.Warn("Failed to look up NWC connection", "user_id", req.UserID, "error", err)
+			}
+
+			if nwcConn != nil {
+				if err := h.umaService.PayWithNWC(invoice.Bolt11, nwcConn.ConnectionURI); err != nil {
+					h.logger.Warn("NWC pay_invoice failed, falling back", "ticket_id", ticket.ID, "error", err)
+				} else {
+					h.logger.Info("NWC payment initiated successfully", "ticket_id", ticket.ID)
+					return
 				}
+			}
+
+			// Send UMA Request to buyer's VASP
+			callbackURL := fmt.Sprintf("https://api.%s/uma/payreq/%d", h.domain, ticket.ID)
+			if err := h.umaService.SendUMARequest(req.UMAAddress, event.PriceSats, callbackURL); err != nil {
+				h.logger.Error("SendUMARequest failed, marking ticket as failed",
+					"ticket_id", ticket.ID, "error", err)
+				// Mark ticket and payment as failed
+				_ = h.ticketRepo.UpdatePaymentStatus(ticket.ID, "failed")
+				_ = h.paymentRepo.UpdateStatus(payment.ID, "failed")
 			}
 		}()
 	}

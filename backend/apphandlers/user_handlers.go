@@ -17,13 +17,15 @@ import (
 
 type UserHandlers struct {
 	userRepo  repositories.UserRepository
+	nwcRepo   repositories.NWCConnectionRepository
 	logger    *slog.Logger
 	jwtSecret string
 }
 
-func NewUserHandlers(userRepo repositories.UserRepository, logger *slog.Logger, jwtSecret string) *UserHandlers {
+func NewUserHandlers(userRepo repositories.UserRepository, nwcRepo repositories.NWCConnectionRepository, logger *slog.Logger, jwtSecret string) *UserHandlers {
 	return &UserHandlers{
 		userRepo:  userRepo,
+		nwcRepo:   nwcRepo,
 		logger:    logger,
 		jwtSecret: jwtSecret,
 	}
@@ -290,6 +292,46 @@ func (h *UserHandlers) HandleGetCurrentUser(w http.ResponseWriter, r *http.Reque
 	middleware.WriteJSON(w, http.StatusOK, models.SuccessResponse{
 		Message: "Current user retrieved successfully",
 		Data:    freshUser,
+	})
+}
+
+// HandleStoreNWCConnection stores an NWC connection for the authenticated user
+func (h *UserHandlers) HandleStoreNWCConnection(w http.ResponseWriter, r *http.Request) {
+	user := middleware.GetUserFromContext(r.Context())
+	if user == nil {
+		middleware.WriteError(w, http.StatusUnauthorized, "User not authenticated")
+		return
+	}
+
+	var req models.StoreNWCConnectionRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		middleware.WriteError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	if req.NWCConnectionURI == "" {
+		middleware.WriteError(w, http.StatusBadRequest, "NWC connection URI is required")
+		return
+	}
+
+	// Validate that it looks like an NWC URI
+	if !strings.HasPrefix(req.NWCConnectionURI, "nostr+walletconnect://") {
+		middleware.WriteError(w, http.StatusBadRequest, "Invalid NWC connection URI format")
+		return
+	}
+
+	h.logger.Info("Storing NWC connection for user", "user_id", user.ID)
+
+	if err := h.nwcRepo.Upsert(user.ID, req.NWCConnectionURI, req.ExpiresAt); err != nil {
+		h.logger.Error("Failed to store NWC connection", "user_id", user.ID, "error", err)
+		middleware.WriteError(w, http.StatusInternalServerError, "Failed to store NWC connection")
+		return
+	}
+
+	h.logger.Info("NWC connection stored successfully", "user_id", user.ID)
+
+	middleware.WriteJSON(w, http.StatusOK, models.SuccessResponse{
+		Message: "NWC connection stored successfully",
 	})
 }
 

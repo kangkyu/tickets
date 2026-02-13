@@ -26,6 +26,7 @@ type Server struct {
 	ticketRepo      repositories.TicketRepository
 	paymentRepo     repositories.PaymentRepository
 	umaRepo         repositories.UMARequestInvoiceRepository
+	nwcRepo         repositories.NWCConnectionRepository
 	umaService      uma_services.UMAService
 	lightsparkClient *services.LightsparkClient
 	router          *mux.Router
@@ -50,6 +51,7 @@ func NewServer(db *sqlx.DB, logger *slog.Logger, config *config.Config) *Server 
 	s.ticketRepo = repositories.NewTicketRepository(db)
 	s.paymentRepo = repositories.NewPaymentRepository(db)
 	s.umaRepo = repositories.NewUMARequestInvoiceRepository(db)
+	s.nwcRepo = repositories.NewNWCConnectionRepository(db)
 
 	// Initialize Lightspark client
 	s.lightsparkClient = services.NewLightsparkClient(config.LightsparkClientID, config.LightsparkClientSecret, nil)
@@ -141,6 +143,7 @@ func (s *Server) setupRoutes() {
 
 	// Protected user routes
 	protected.HandleFunc("/users/me", s.userHandlers.HandleGetCurrentUser).Methods("GET", "OPTIONS")
+	protected.HandleFunc("/users/me/nwc-connection", s.userHandlers.HandleStoreNWCConnection).Methods("POST", "OPTIONS")
 	protected.HandleFunc("/users/{id:[0-9]+}", s.userHandlers.HandleUpdateUser).Methods("PUT", "OPTIONS")
 	protected.HandleFunc("/users/{id:[0-9]+}", s.userHandlers.HandleDeleteUser).Methods("DELETE", "OPTIONS")
 
@@ -173,9 +176,9 @@ func (s *Server) setupRoutes() {
 
 // Initialize handlers
 func (s *Server) initializeHandlers() {
-	s.userHandlers = apphandlers.NewUserHandlers(s.userRepo, s.logger, s.config.JWTSecret)
+	s.userHandlers = apphandlers.NewUserHandlers(s.userRepo, s.nwcRepo, s.logger, s.config.JWTSecret)
 	s.eventHandlers = apphandlers.NewEventHandlers(s.eventRepo, s.paymentRepo, s.ticketRepo, s.umaService, s.umaRepo, s.logger, s.config)
-	s.ticketHandlers = apphandlers.NewTicketHandlers(s.ticketRepo, s.eventRepo, s.paymentRepo, s.umaRepo, s.umaService, s.logger, s.config.Domain)
+	s.ticketHandlers = apphandlers.NewTicketHandlers(s.ticketRepo, s.eventRepo, s.paymentRepo, s.umaRepo, s.nwcRepo, s.umaService, s.logger, s.config.Domain)
 	s.paymentHandlers = apphandlers.NewPaymentHandlers(s.paymentRepo, s.ticketRepo, s.umaService, s.lightsparkClient, s.logger)
 	s.lnurlHandlers = apphandlers.NewLnurlHandlers(s.paymentRepo, s.umaService, s.lightsparkClient, s.logger, s.config.Domain, s.config.LightsparkNodeID)
 }

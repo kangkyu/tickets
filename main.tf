@@ -112,6 +112,11 @@ variable "uma_encryption_cert_chain" {
   sensitive   = true
 }
 
+variable "uma_auth_app_identity_pubkey" {
+  description = "UMA Auth app identity public key (Nostr hex pubkey)"
+  type        = string
+}
+
 variable "main_branch_name" {
   description = "Main branch name (e.g., master, main)"
   type        = string
@@ -837,8 +842,10 @@ resource "aws_amplify_branch" "main" {
 
   # Updated environment variables for the new setup
   environment_variables = {
-    VITE_API_BASE_URL = "https://api.${var.domain_name}"
-    NODE_ENV          = "production"
+    VITE_API_BASE_URL                 = "https://api.${var.domain_name}"
+    VITE_UMA_AUTH_APP_IDENTITY_PUBKEY = var.uma_auth_app_identity_pubkey
+    VITE_UMA_AUTH_REDIRECT_URI        = "https://${var.domain_name}"
+    NODE_ENV                          = "production"
   }
 
   tags = {

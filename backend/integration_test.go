@@ -129,6 +129,11 @@ func (m *MockUMAService) GetNodeBalance() (*models.NodeBalance, error) {
 	}, nil
 }
 
+func (m *MockUMAService) PayWithNWC(bolt11 string, nwcConnectionURI string) error {
+	m.logger.Info("Mock PayWithNWC called", "bolt11_prefix", bolt11[:20]+"...", "nwc_uri_prefix", nwcConnectionURI[:20]+"...")
+	return nil
+}
+
 func (m *MockUMAService) HandleUMACallback(paymentHash string, status string) error {
 	return nil
 }
@@ -191,7 +196,7 @@ func setupTestServer(t *testing.T) *TestServer {
 
 // cleanDatabase truncates all tables for clean test state
 func cleanDatabase(t *testing.T, db *sqlx.DB) {
-	tables := []string{"payments", "tickets", "events", "users", "uma_request_invoices"}
+	tables := []string{"payments", "tickets", "events", "nwc_connections", "users", "uma_request_invoices"}
 	for _, table := range tables {
 		_, err := db.Exec(fmt.Sprintf("TRUNCATE TABLE %s CASCADE", table))
 		if err != nil {

@@ -109,6 +109,22 @@ type NodeBalance struct {
 	Status               string `json:"status"`
 }
 
+// NWCConnection represents a stored NWC connection for a user
+type NWCConnection struct {
+	ID            int        `json:"id" db:"id"`
+	UserID        int        `json:"user_id" db:"user_id"`
+	ConnectionURI string     `json:"connection_uri" db:"connection_uri"`
+	ExpiresAt     *time.Time `json:"expires_at" db:"expires_at"`
+	CreatedAt     time.Time  `json:"created_at" db:"created_at"`
+	UpdatedAt     time.Time  `json:"updated_at" db:"updated_at"`
+}
+
+// StoreNWCConnectionRequest represents a request to store an NWC connection
+type StoreNWCConnectionRequest struct {
+	NWCConnectionURI string     `json:"nwc_connection_uri"`
+	ExpiresAt        *time.Time `json:"expires_at,omitempty"`
+}
+
 // TicketPurchaseRequest represents a ticket purchase request
 type TicketPurchaseRequest struct {
 	EventID    int    `json:"event_id"`

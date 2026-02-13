@@ -55,7 +55,11 @@ func (h *LnurlHandlers) HandleLnurlPay(w http.ResponseWriter, r *http.Request) {
 	h.logger.Info("LNURL-pay resolution request")
 
 	metadata := `[["text/plain","Ticket purchase at fanmeeting.org"]]`
-	callbackURL := fmt.Sprintf("https://%s/api/lnurl/callback", h.domain)
+	lnurlDomain := h.domain
+	if h.domain != "localhost" && h.domain != "localhost:8080" {
+		lnurlDomain = "api." + h.domain
+	}
+	callbackURL := fmt.Sprintf("https://%s/api/lnurl/callback", lnurlDomain)
 
 	response := map[string]interface{}{
 		"callback":    callbackURL,
@@ -250,9 +254,13 @@ func (h *LnurlHandlers) HandleUmaConfiguration(w http.ResponseWriter, r *http.Re
 	if h.domain == "localhost" || h.domain == "localhost:8080" {
 		scheme = "http"
 	}
+	apiDomain := h.domain
+	if h.domain != "localhost" && h.domain != "localhost:8080" {
+		apiDomain = "api." + h.domain
+	}
 	response := map[string]interface{}{
 		"uma_major_versions":   uma.GetSupportedMajorVersions(),
-		"uma_request_endpoint": fmt.Sprintf("%s://%s/uma/request_invoice_payment", scheme, h.domain),
+		"uma_request_endpoint": fmt.Sprintf("%s://%s/uma/payreq/0", scheme, apiDomain),
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)

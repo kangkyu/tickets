@@ -1,6 +1,8 @@
 package repositories
 
 import (
+	"time"
+
 	"tickets-by-uma/models"
 )
 
@@ -47,6 +49,12 @@ type TicketRepository interface {
 	GetPendingTickets() ([]models.Ticket, error)
 	CountByEventAndStatus(eventID int, status string) (int, error)
 	HasUserTicketForEvent(userID, eventID int) (bool, error)
+}
+
+// NWCConnectionRepository defines operations for NWC connection data
+type NWCConnectionRepository interface {
+	Upsert(userID int, connectionURI string, expiresAt *time.Time) error
+	GetByUserID(userID int) (*models.NWCConnection, error)
 }
 
 // PaymentRepository defines operations for payment data
