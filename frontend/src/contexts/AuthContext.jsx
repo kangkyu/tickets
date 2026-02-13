@@ -48,16 +48,16 @@ export const AuthProvider = ({ children }) => {
     }
   }
 
-  const login = async (email, name) => {
+  const login = async (email, password) => {
     try {
       setIsLoading(true)
-      
+
       const response = await fetch(`${config.apiUrl}/api/users/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ email })
+        body: JSON.stringify({ email, password })
       })
 
       if (!response.ok) {
@@ -82,16 +82,16 @@ export const AuthProvider = ({ children }) => {
     }
   }
 
-  const register = async (email, name) => {
+  const register = async (email, name, password) => {
     try {
       setIsLoading(true)
-      
+
       const response = await fetch(`${config.apiUrl}/api/users`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ email, name })
+        body: JSON.stringify({ email, name, password })
       })
 
       if (!response.ok) {
@@ -99,11 +99,8 @@ export const AuthProvider = ({ children }) => {
         throw new Error(errorData.message || 'Registration failed')
       }
 
-      const data = await response.json()
-      const userData = data.data
-
       // After successful registration, log the user in
-      return await login(email, name)
+      return await login(email, password)
     } catch (error) {
       console.error('Registration failed:', error)
       return { success: false, error: error.message }

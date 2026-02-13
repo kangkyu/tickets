@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/gorilla/mux"
+	"golang.org/x/crypto/bcrypt"
 
 	"tickets-by-uma/middleware"
 	"tickets-by-uma/models"
@@ -60,10 +61,19 @@ func (h *UserHandlers) HandleCreateUser(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	// Hash password
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+	if err != nil {
+		h.logger.Error("Failed to hash password", "error", err)
+		middleware.WriteError(w, http.StatusInternalServerError, "Failed to create user")
+		return
+	}
+
 	// Create new user
 	user := &models.User{
-		Email: req.Email,
-		Name:  req.Name,
+		Email:        req.Email,
+		Name:         req.Name,
+		PasswordHash: string(hashedPassword),
 	}
 
 	if err := h.userRepo.Create(user); err != nil {
@@ -93,6 +103,11 @@ func (h *UserHandlers) HandleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if req.Password == "" {
+		middleware.WriteError(w, http.StatusBadRequest, "Password is required")
+		return
+	}
+
 	h.logger.Info("User login attempt", "email", req.Email)
 
 	// Get user by email
@@ -104,8 +119,14 @@ func (h *UserHandlers) HandleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if user == nil {
-		// Don't reveal if user exists or not for security
 		h.logger.Warn("Login failed - user not found", "email", req.Email)
+		middleware.WriteError(w, http.StatusUnauthorized, "Invalid credentials")
+		return
+	}
+
+	// Verify password
+	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)); err != nil {
+		h.logger.Warn("Login failed - invalid password", "email", req.Email)
 		middleware.WriteError(w, http.StatusUnauthorized, "Invalid credentials")
 		return
 	}
@@ -345,6 +366,10 @@ func (h *UserHandlers) validateCreateUserRequest(req *models.CreateUserRequest) 
 		return fmt.Errorf("name is required")
 	}
 
+	if req.Password == "" {
+		return fmt.Errorf("password is required")
+	}
+
 	// Basic email validation
 	if len(req.Email) < 5 || !strings.Contains(req.Email, "@") {
 		return fmt.Errorf("invalid email format")
@@ -353,6 +378,11 @@ func (h *UserHandlers) validateCreateUserRequest(req *models.CreateUserRequest) 
 	// Basic name validation
 	if len(req.Name) < 2 {
 		return fmt.Errorf("name must be at least 2 characters long")
+	}
+
+	// Password minimum length
+	if len(req.Password) < 8 {
+		return fmt.Errorf("password must be at least 8 characters long")
 	}
 
 	return nil

@@ -55,6 +55,40 @@ ALTER SEQUENCE public.events_id_seq OWNED BY public.events.id;
 
 
 --
+-- Name: nwc_connections; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.nwc_connections (
+    id integer NOT NULL,
+    user_id integer NOT NULL,
+    connection_uri text NOT NULL,
+    expires_at timestamp without time zone,
+    created_at timestamp without time zone DEFAULT now(),
+    updated_at timestamp without time zone DEFAULT now()
+);
+
+
+--
+-- Name: nwc_connections_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.nwc_connections_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: nwc_connections_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.nwc_connections_id_seq OWNED BY public.nwc_connections.id;
+
+
+--
 -- Name: payments; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -144,7 +178,6 @@ ALTER SEQUENCE public.tickets_id_seq OWNED BY public.tickets.id;
 CREATE TABLE public.uma_request_invoices (
     id integer NOT NULL,
     event_id integer,
-    ticket_id integer,
     invoice_id text NOT NULL,
     payment_hash character varying(255),
     bolt11 text NOT NULL,
@@ -155,6 +188,7 @@ CREATE TABLE public.uma_request_invoices (
     expires_at timestamp without time zone,
     created_at timestamp without time zone DEFAULT now(),
     updated_at timestamp without time zone DEFAULT now(),
+    ticket_id integer,
     CONSTRAINT uma_request_invoices_amount_sats_check CHECK ((amount_sats > 0))
 );
 
@@ -180,40 +214,6 @@ ALTER SEQUENCE public.uma_request_invoices_id_seq OWNED BY public.uma_request_in
 
 
 --
--- Name: nwc_connections; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.nwc_connections (
-    id integer NOT NULL,
-    user_id integer NOT NULL,
-    connection_uri text NOT NULL,
-    expires_at timestamp without time zone,
-    created_at timestamp without time zone DEFAULT now(),
-    updated_at timestamp without time zone DEFAULT now()
-);
-
-
---
--- Name: nwc_connections_id_seq; Type: SEQUENCE; Schema: public; Owner: -
---
-
-CREATE SEQUENCE public.nwc_connections_id_seq
-    AS integer
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
---
--- Name: nwc_connections_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
---
-
-ALTER SEQUENCE public.nwc_connections_id_seq OWNED BY public.nwc_connections.id;
-
-
---
 -- Name: users; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -222,7 +222,8 @@ CREATE TABLE public.users (
     email character varying(255) NOT NULL,
     name character varying(255) NOT NULL,
     created_at timestamp without time zone DEFAULT now(),
-    updated_at timestamp without time zone DEFAULT now()
+    updated_at timestamp without time zone DEFAULT now(),
+    password_hash character varying(255) DEFAULT ''::character varying NOT NULL
 );
 
 
@@ -254,6 +255,13 @@ ALTER TABLE ONLY public.events ALTER COLUMN id SET DEFAULT nextval('public.event
 
 
 --
+-- Name: nwc_connections id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.nwc_connections ALTER COLUMN id SET DEFAULT nextval('public.nwc_connections_id_seq'::regclass);
+
+
+--
 -- Name: payments id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -278,13 +286,6 @@ ALTER TABLE ONLY public.uma_request_invoices ALTER COLUMN id SET DEFAULT nextval
 -- Name: users id; Type: DEFAULT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.nwc_connections ALTER COLUMN id SET DEFAULT nextval('public.nwc_connections_id_seq'::regclass);
-
-
---
--- Name: users id; Type: DEFAULT; Schema: public; Owner: -
---
-
 ALTER TABLE ONLY public.users ALTER COLUMN id SET DEFAULT nextval('public.users_id_seq'::regclass);
 
 
@@ -294,6 +295,22 @@ ALTER TABLE ONLY public.users ALTER COLUMN id SET DEFAULT nextval('public.users_
 
 ALTER TABLE ONLY public.events
     ADD CONSTRAINT events_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: nwc_connections nwc_connections_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.nwc_connections
+    ADD CONSTRAINT nwc_connections_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: nwc_connections nwc_connections_user_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.nwc_connections
+    ADD CONSTRAINT nwc_connections_user_id_key UNIQUE (user_id);
 
 
 --
@@ -342,22 +359,6 @@ ALTER TABLE ONLY public.uma_request_invoices
 
 ALTER TABLE ONLY public.uma_request_invoices
     ADD CONSTRAINT uma_request_invoices_pkey PRIMARY KEY (id);
-
-
---
--- Name: users users_email_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.nwc_connections
-    ADD CONSTRAINT nwc_connections_pkey PRIMARY KEY (id);
-
-
---
--- Name: nwc_connections nwc_connections_user_id_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.nwc_connections
-    ADD CONSTRAINT nwc_connections_user_id_key UNIQUE (user_id);
 
 
 --
@@ -447,6 +448,14 @@ CREATE INDEX idx_uma_invoices_ticket_id ON public.uma_request_invoices USING btr
 
 
 --
+-- Name: nwc_connections nwc_connections_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.nwc_connections
+    ADD CONSTRAINT nwc_connections_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id);
+
+
+--
 -- Name: payments payments_ticket_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -487,14 +496,6 @@ ALTER TABLE ONLY public.uma_request_invoices
 
 
 --
--- Name: nwc_connections nwc_connections_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.nwc_connections
-    ADD CONSTRAINT nwc_connections_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id);
-
-
---
 -- PostgreSQL database dump complete
 --
 
@@ -513,4 +514,6 @@ INSERT INTO public.schema_migrations (version) VALUES
     ('20250817230648'),
     ('20250817230649'),
     ('20250901202340'),
-    ('20260210000001');
+    ('20260210000001'),
+    ('20260212000001'),
+    ('20260213000001');

@@ -19,12 +19,12 @@ func NewUserRepository(db *sqlx.DB) UserRepository {
 
 func (r *userRepository) Create(user *models.User) error {
 	query := `
-		INSERT INTO users (email, name, created_at, updated_at) 
-		VALUES ($1, $2, $3, $4) 
+		INSERT INTO users (email, name, password_hash, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5)
 		RETURNING id, created_at, updated_at`
 
 	now := time.Now()
-	return r.db.QueryRowx(query, user.Email, user.Name, now, now).StructScan(user)
+	return r.db.QueryRowx(query, user.Email, user.Name, user.PasswordHash, now, now).StructScan(user)
 }
 
 func (r *userRepository) GetByID(id int) (*models.User, error) {

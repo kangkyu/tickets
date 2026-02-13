@@ -1,12 +1,13 @@
 import { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { Mail, User, ArrowLeft, Zap } from 'lucide-react'
+import { Mail, User, Lock, ArrowLeft, Zap } from 'lucide-react'
 
 const Login = () => {
   const [isLogin, setIsLogin] = useState(true)
   const [email, setEmail] = useState('')
   const [name, setName] = useState('')
+  const [password, setPassword] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
   
@@ -26,9 +27,9 @@ const Login = () => {
       let result
       
       if (isLogin) {
-        result = await login(email, name)
+        result = await login(email, password)
       } else {
-        result = await register(email, name)
+        result = await register(email, name, password)
       }
 
       if (result.success) {
@@ -49,6 +50,7 @@ const Login = () => {
     setError('')
     setEmail('')
     setName('')
+    setPassword('')
   }
 
   return (
@@ -129,6 +131,28 @@ const Login = () => {
               </div>
             )}
 
+            {/* Password Field */}
+            <div>
+              <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+                Password
+              </label>
+              <div className="mt-1 relative">
+                <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                <input
+                  id="password"
+                  name="password"
+                  type="password"
+                  autoComplete={isLogin ? 'current-password' : 'new-password'}
+                  required
+                  minLength={8}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="input-field pl-10"
+                  placeholder={isLogin ? 'Enter your password' : 'Create a password (min 8 characters)'}
+                />
+              </div>
+            </div>
+
             {/* Error Message */}
             {error && (
               <div className="bg-red-50 border border-red-200 rounded-md p-4">
@@ -149,7 +173,7 @@ const Login = () => {
             <div>
               <button
                 type="submit"
-                disabled={isLoading || !email || (!isLogin && !name)}
+                disabled={isLoading || !email || !password || (!isLogin && !name)}
                 className="btn-uma w-full disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isLoading ? (
@@ -190,13 +214,13 @@ const Login = () => {
             </div>
             <div className="mt-4 text-center text-sm text-gray-600">
               <p className="mb-2">
-                {isLogin 
-                  ? 'Sign in with your email to access your account and purchase tickets.'
-                  : 'Create an account with just your email to start purchasing event tickets.'
+                {isLogin
+                  ? 'Sign in with your email and password to access your account.'
+                  : 'Create an account to start purchasing event tickets.'
                 }
               </p>
               <p className="text-xs">
-                No password required • Secure authentication • Instant access
+                Secure authentication • Instant access
               </p>
             </div>
           </div>
