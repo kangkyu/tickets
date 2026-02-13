@@ -27,11 +27,11 @@ const (
 
 // Test fixture data
 var testUsers = []models.CreateUserRequest{
-	{Email: "admin@test.com", Name: "Admin User"},
-	{Email: "buyer@test.com", Name: "Test Buyer"},
-	{Email: "freebuyer@test.com", Name: "Free Ticket Buyer"},
-	{Email: "user1@test.com", Name: "Regular User 1"},
-	{Email: "user2@test.com", Name: "Regular User 2"},
+	{Email: "admin@test.com", Name: "Admin User", Password: "password123"},
+	{Email: "buyer@test.com", Name: "Test Buyer", Password: "password123"},
+	{Email: "freebuyer@test.com", Name: "Free Ticket Buyer", Password: "password123"},
+	{Email: "user1@test.com", Name: "Regular User 1", Password: "password123"},
+	{Email: "user2@test.com", Name: "Regular User 2", Password: "password123"},
 }
 
 // TestServer holds test server and dependencies
@@ -243,7 +243,8 @@ func (ts *TestServer) loadUserFixtures(t *testing.T) {
 
 		// Login user to get token
 		loginReq := models.LoginRequest{
-			Email: userReq.Email,
+			Email:    userReq.Email,
+			Password: userReq.Password,
 		}
 
 		loginJSON, _ := json.Marshal(loginReq)
@@ -293,8 +294,9 @@ func TestUserRegistrationAndLogin(t *testing.T) {
 
 	// Test user registration
 	user := models.CreateUserRequest{
-		Email: "test@example.com",
-		Name:  "Test User",
+		Email:    "test@example.com",
+		Name:     "Test User",
+		Password: "password123",
 	}
 
 	userJSON, _ := json.Marshal(user)
@@ -313,7 +315,8 @@ func TestUserRegistrationAndLogin(t *testing.T) {
 
 	// Test user login
 	loginReq := models.LoginRequest{
-		Email: "test@example.com",
+		Email:    "test@example.com",
+		Password: "password123",
 	}
 
 	loginJSON, _ := json.Marshal(loginReq)

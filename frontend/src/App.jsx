@@ -1,4 +1,4 @@
-import { useEffect, useCallback } from 'react'
+import { useEffect, useCallback, useState } from 'react'
 import { Routes, Route } from 'react-router-dom'
 import { useOAuth } from '@uma-sdk/uma-auth-client'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
@@ -15,8 +15,8 @@ import CreateEvent from './components/CreateEvent'
 import EditEvent from './components/EditEvent'
 import config from './config/api'
 
-// Captures NWC connection URI from OAuth redirect on any page
-function NWCConnectionHandler({ children }) {
+// Only processes OAuth callback — mounted conditionally when URL has OAuth params
+function OAuthCallbackHandler() {
   const { nwcConnectionUri } = useOAuth()
   const { token } = useAuth()
 
@@ -42,7 +42,22 @@ function NWCConnectionHandler({ children }) {
     }
   }, [nwcConnectionUri, storeNWCConnection])
 
-  return children
+  return null
+}
+
+// Only renders OAuthCallbackHandler when URL contains OAuth callback params
+function NWCConnectionHandler({ children }) {
+  const [hasOAuthParams] = useState(() => {
+    const params = new URLSearchParams(window.location.search)
+    return params.has('code') && params.has('state')
+  })
+
+  return (
+    <>
+      {hasOAuthParams && <OAuthCallbackHandler />}
+      {children}
+    </>
+  )
 }
 
 function App() {
