@@ -293,14 +293,17 @@ func (s *LightsparkUMAService) SendUMARequest(buyerUMA string, amountSats int64,
 	}
 	defer resp2.Body.Close()
 
+	respBody, _ := io.ReadAll(resp2.Body)
+
 	if resp2.StatusCode != http.StatusOK {
-		respBody, _ := io.ReadAll(resp2.Body)
 		return fmt.Errorf("VASP rejected invoice (status %d): %s", resp2.StatusCode, string(respBody))
 	}
 
 	s.logger.Info("UMA Request sent successfully",
 		"buyer_uma", buyerUMA,
-		"vasp_domain", buyerVASPDomain)
+		"vasp_domain", buyerVASPDomain,
+		"vasp_response_status", resp2.StatusCode,
+		"vasp_response_body", string(respBody))
 
 	return nil
 }

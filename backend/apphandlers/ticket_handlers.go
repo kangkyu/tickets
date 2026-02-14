@@ -216,12 +216,15 @@ func (h *TicketHandlers) HandlePurchaseTicket(w http.ResponseWriter, r *http.Req
 			}
 
 			if nwcConn != nil {
+				h.logger.Info("NWC connection found, attempting payment", "ticket_id", ticket.ID, "user_id", req.UserID)
 				if err := h.umaService.PayWithNWC(invoice.Bolt11, nwcConn.ConnectionURI); err != nil {
 					h.logger.Warn("NWC pay_invoice failed, falling back", "ticket_id", ticket.ID, "error", err)
 				} else {
 					h.logger.Info("NWC payment initiated successfully", "ticket_id", ticket.ID)
 					return
 				}
+			} else {
+				h.logger.Info("No NWC connection found for user, using UMA Request", "user_id", req.UserID)
 			}
 
 			// Send UMA Request to buyer's VASP
