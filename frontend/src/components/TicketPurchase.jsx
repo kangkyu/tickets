@@ -61,7 +61,6 @@ const TicketPurchase = () => {
     watch
   } = useForm({
     defaultValues: {
-      eventId: parseInt(eventId),
       quantity: 1,
       userName: user?.name || '',
       userEmail: user?.email || '',
@@ -97,7 +96,7 @@ const TicketPurchase = () => {
           'Authorization': `Bearer ${localStorage.getItem('authToken')}`
         },
         body: JSON.stringify({
-          event_id: data.eventId,
+          event_id: parseInt(eventId),
           user_id: user.id,
           uma_address: data.umaAddress
         })
@@ -235,7 +234,8 @@ const TicketPurchase = () => {
             <div className="card">
               <h2 className="text-xl font-semibold text-gray-900 mb-6">Ticket Information</h2>
               
-              <form onSubmit={handleSubmit(onSubmit, (errs) => console.error('Form validation errors:', errs))} className="space-y-6">
+              <div className="space-y-6">
+              <form id="ticket-purchase-form" onSubmit={handleSubmit(onSubmit)} className="space-y-6">
                 {/* Quantity */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -259,7 +259,7 @@ const TicketPurchase = () => {
                 {/* User Information */}
                 <div className="space-y-4">
                   <h3 className="text-lg font-medium text-gray-900">Personal Information</h3>
-                  
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Full Name
@@ -286,7 +286,7 @@ const TicketPurchase = () => {
                       <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
                       <input
                         type="email"
-                        {...register('userEmail', { 
+                        {...register('userEmail', {
                           required: 'Email is required',
                           pattern: {
                             value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
@@ -338,8 +338,9 @@ const TicketPurchase = () => {
                     </p>
                   </div>
                 </div>
+              </form>
 
-                {/* Wallet Connect */}
+                {/* Wallet Connect - outside form to prevent nested form from UmaConnectButton */}
                 {event.price_sats > 0 && walletChecked && (
                   <div className="space-y-4">
                     <h3 className="text-lg font-medium text-gray-900">Connect Wallet</h3>
@@ -393,15 +394,16 @@ const TicketPurchase = () => {
                   </div>
                 )}
 
-                {/* Submit Button */}
+                {/* Submit Button - uses form attribute to stay linked to the form */}
                 <button
                   type="submit"
+                  form="ticket-purchase-form"
                   disabled={!isValid || isCreatingPayment}
                   className="btn-uma w-full disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isCreatingPayment ? 'Creating Payment...' : 'Continue to Payment'}
                 </button>
-              </form>
+              </div>
             </div>
           </div>
 
