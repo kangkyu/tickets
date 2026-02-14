@@ -7,7 +7,7 @@ const Layout = ({ children }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false)
   const location = useLocation()
-  const { user, isAuthenticated, logout, deleteAccount } = useAuth()
+  const { user, isAuthenticated, isAdmin, logout, deleteAccount } = useAuth()
   const userMenuRef = useRef(null)
 
   const navigation = [
@@ -130,7 +130,7 @@ const Layout = ({ children }) => {
                       </Link>
                       
                       {/* Admin Link - only show for admin users */}
-                      {user && ['admin@example.com'].includes(user.email) && (
+                      {isAdmin && (
                         <Link
                           to="/admin"
                           onClick={() => setIsUserMenuOpen(false)}
@@ -225,7 +225,7 @@ const Layout = ({ children }) => {
                   </div>
                   
                   {/* Mobile Admin Link */}
-                  {user && ['admin@example.com'].includes(user.email) && (
+                  {isAdmin && (
                     <Link
                       to="/admin"
                       onClick={() => setIsMobileMenuOpen(false)}

@@ -159,6 +159,11 @@ func (s *Server) setupRoutes() {
 	admin.Use(middleware.AuthMiddleware(s.config.JWTSecret))
 	admin.Use(s.adminMiddleware)
 
+	// Admin status check - if the middleware lets you through, you're admin
+	admin.HandleFunc("/status", func(w http.ResponseWriter, r *http.Request) {
+		middleware.WriteJSON(w, http.StatusOK, map[string]bool{"is_admin": true})
+	}).Methods("GET", "OPTIONS")
+
 	// Admin event routes
 	admin.HandleFunc("/events", s.eventHandlers.HandleCreateEvent).Methods("POST", "OPTIONS")
 	admin.HandleFunc("/events/{id:[0-9]+}", s.eventHandlers.HandleUpdateEvent).Methods("PUT", "OPTIONS")

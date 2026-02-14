@@ -15,6 +15,7 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null)
   const [token, setToken] = useState(localStorage.getItem('authToken'))
   const [isLoading, setIsLoading] = useState(true)
+  const [isAdmin, setIsAdmin] = useState(false)
 
   // Check if user is authenticated on app load
   useEffect(() => {
@@ -36,6 +37,16 @@ export const AuthProvider = ({ children }) => {
       if (response.ok) {
         const data = await response.json()
         setUser(data.data)
+
+        // Check admin status via admin middleware
+        try {
+          const adminRes = await fetch(`${config.apiUrl}/api/admin/status`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          })
+          setIsAdmin(adminRes.ok)
+        } catch {
+          // Not admin or endpoint unavailable
+        }
       } else {
         // Token is invalid, clear it
         logout()
@@ -113,6 +124,7 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem('authToken')
     setToken(null)
     setUser(null)
+    setIsAdmin(false)
   }
 
   const deleteAccount = async () => {
@@ -142,6 +154,7 @@ export const AuthProvider = ({ children }) => {
     token,
     isLoading,
     isAuthenticated: !!token && !!user,
+    isAdmin,
     login,
     register,
     logout,

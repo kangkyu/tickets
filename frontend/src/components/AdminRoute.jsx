@@ -2,7 +2,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { Navigate } from 'react-router-dom'
 
 const AdminRoute = ({ children }) => {
-  const { user, isAuthenticated, isLoading } = useAuth()
+  const { isAuthenticated, isLoading, isAdmin } = useAuth()
 
   if (isLoading) {
     return (
@@ -15,10 +15,6 @@ const AdminRoute = ({ children }) => {
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />
   }
-
-  // Check if user is admin (based on backend admin middleware logic)
-  const adminEmails = ['admin@example.com'] // This matches the default from backend config
-  const isAdmin = user && adminEmails.includes(user.email)
 
   if (!isAdmin) {
     return (
