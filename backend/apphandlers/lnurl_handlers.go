@@ -1,6 +1,7 @@
 package apphandlers
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -20,12 +21,13 @@ import (
 
 // LnurlHandlers handles LNURL-pay protocol endpoints and UMA payreq callbacks.
 type LnurlHandlers struct {
-	paymentRepo repositories.PaymentRepository
-	umaService  umaservices.UMAService
-	lsClient    *services.LightsparkClient
-	logger      *slog.Logger
-	domain      string
-	nodeID      string
+	paymentRepo          repositories.PaymentRepository
+	umaService           umaservices.UMAService
+	lsClient             *services.LightsparkClient
+	logger               *slog.Logger
+	domain               string
+	nodeID               string
+	umaSigningPrivKeyHex string
 }
 
 func NewLnurlHandlers(
@@ -35,14 +37,16 @@ func NewLnurlHandlers(
 	logger *slog.Logger,
 	domain string,
 	nodeID string,
+	umaSigningPrivKeyHex string,
 ) *LnurlHandlers {
 	return &LnurlHandlers{
-		paymentRepo: paymentRepo,
-		umaService:  umaService,
-		lsClient:    lsClient,
-		logger:      logger,
-		domain:      domain,
-		nodeID:      nodeID,
+		paymentRepo:          paymentRepo,
+		umaService:           umaService,
+		lsClient:             lsClient,
+		logger:               logger,
+		domain:               domain,
+		nodeID:               nodeID,
+		umaSigningPrivKeyHex: umaSigningPrivKeyHex,
 	}
 }
 
@@ -153,15 +157,10 @@ func (h *LnurlHandlers) HandleUmaPayreq(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// The payment.InvoiceID is the bolt11 — return it to the sender's VASP
+	// Reuse the bolt11 already created during ticket purchase.
+	bolt11 := payment.InvoiceID
 	metadata := fmt.Sprintf(`[["text/plain","Ticket purchase at %s"]]`, h.domain)
-
-	expirySecs := int32(600)
-	invoiceCreator := LightsparkLnurlInvoiceCreator{
-		Client:     h.lsClient,
-		NodeId:     h.nodeID,
-		ExpirySecs: &expirySecs,
-	}
+	invoiceCreator := existingInvoiceCreator{bolt11: bolt11}
 
 	// Parse the incoming pay request
 	requestBody, err := readBody(r)
@@ -174,9 +173,8 @@ func (h *LnurlHandlers) HandleUmaPayreq(w http.ResponseWriter, r *http.Request) 
 	payreq, err := uma.ParsePayRequest(requestBody)
 	if err != nil {
 		h.logger.Error("Failed to parse pay request", "error", err)
-		// Fall back: return the existing bolt11 directly
 		response := map[string]interface{}{
-			"pr":     payment.InvoiceID,
+			"pr":     bolt11,
 			"routes": []interface{}{},
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -187,6 +185,15 @@ func (h *LnurlHandlers) HandleUmaPayreq(w http.ResponseWriter, r *http.Request) 
 	conversionRate := 1000.0 // msats per sat
 	decimals := 0
 	exchangeFees := int64(0)
+	payeeIdentifier := "$tickets@" + h.domain
+
+	// Decode signing key for UMA compliance data
+	signingKey, err := hex.DecodeString(h.umaSigningPrivKeyHex)
+	if err != nil {
+		h.logger.Error("Failed to decode UMA signing key", "error", err)
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
 
 	payreqResponse, err := uma.GetPayReqResponse(
 		*payreq,
@@ -196,20 +203,19 @@ func (h *LnurlHandlers) HandleUmaPayreq(w http.ResponseWriter, r *http.Request) 
 		&decimals,
 		&conversionRate,
 		&exchangeFees,
-		nil, // receiverUtxos
-		nil, // receiverNodePubKey
-		nil, // utxoCallback
-		nil, // payeeData
-		nil, // signingPrivateKey
-		nil, // receiverIdentifier
-		nil, // receiverChannelUtxos
-		nil, // disposable
+		nil,              // receiverChannelUtxos
+		nil,              // receiverNodePubKey
+		nil,              // utxoCallback
+		nil,              // payeeData
+		&signingKey,      // receivingVaspPrivateKey
+		&payeeIdentifier, // payeeIdentifier
+		nil,              // disposable
+		nil,              // successAction
 	)
 	if err != nil {
 		h.logger.Error("Failed to create payreq response", "error", err)
-		// Fall back: return the existing bolt11
 		response := map[string]interface{}{
-			"pr":     payment.InvoiceID,
+			"pr":     bolt11,
 			"routes": []interface{}{},
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -279,6 +285,15 @@ func (l LightsparkLnurlInvoiceCreator) CreateInvoice(amountMsats int64, metadata
 		return nil, err
 	}
 	return &invoice.Data.EncodedPaymentRequest, nil
+}
+
+// existingInvoiceCreator returns a pre-existing bolt11 instead of creating a new one.
+type existingInvoiceCreator struct {
+	bolt11 string
+}
+
+func (c existingInvoiceCreator) CreateInvoice(amountMsats int64, metadata string, receiverIdentifier *string) (*string, error) {
+	return &c.bolt11, nil
 }
 
 // SatsCurrency for UMA payreq responses

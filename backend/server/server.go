@@ -186,7 +186,7 @@ func (s *Server) initializeHandlers() {
 	s.eventHandlers = apphandlers.NewEventHandlers(s.eventRepo, s.paymentRepo, s.ticketRepo, s.umaService, s.umaRepo, s.logger, s.config)
 	s.ticketHandlers = apphandlers.NewTicketHandlers(s.ticketRepo, s.eventRepo, s.paymentRepo, s.umaRepo, s.nwcRepo, s.umaService, s.logger, s.config.Domain)
 	s.paymentHandlers = apphandlers.NewPaymentHandlers(s.paymentRepo, s.ticketRepo, s.umaService, s.lightsparkClient, s.logger)
-	s.lnurlHandlers = apphandlers.NewLnurlHandlers(s.paymentRepo, s.umaService, s.lightsparkClient, s.logger, s.config.Domain, s.config.LightsparkNodeID)
+	s.lnurlHandlers = apphandlers.NewLnurlHandlers(s.paymentRepo, s.umaService, s.lightsparkClient, s.logger, s.config.Domain, s.config.LightsparkNodeID, s.config.UMASigningPrivKeyHex)
 }
 
 // CORS middleware

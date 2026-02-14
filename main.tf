@@ -816,6 +816,14 @@ applications:
           - node_modules/**/*
 EOT
 
+  # Proxy .well-known requests to the API backend so VASPs (e.g. test.uma.me)
+  # can verify UMA invoice signatures and discover LNURL/UMA endpoints.
+  custom_rule {
+    source = "/.well-known/<*>"
+    target = "https://api.${var.domain_name}/.well-known/<*>"
+    status = "200"
+  }
+
   custom_rule {
     source = "/<*>"
     target = "/index.html"
