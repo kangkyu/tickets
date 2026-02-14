@@ -844,7 +844,7 @@ resource "aws_amplify_branch" "main" {
   environment_variables = {
     VITE_API_BASE_URL                 = "https://api.${var.domain_name}"
     VITE_UMA_AUTH_APP_IDENTITY_PUBKEY = var.uma_auth_app_identity_pubkey
-    VITE_UMA_AUTH_REDIRECT_URI        = "https://${var.domain_name}"
+    VITE_UMA_AUTH_REDIRECT_URI        = "https://${var.domain_name}/oauth/callback"
     NODE_ENV                          = "production"
   }
 

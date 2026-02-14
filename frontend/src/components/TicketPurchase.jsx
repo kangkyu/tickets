@@ -10,7 +10,7 @@ import config from '../config/api'
 
 const UMA_AUTH_APP_IDENTITY_PUBKEY = import.meta.env.VITE_UMA_AUTH_APP_IDENTITY_PUBKEY || ''
 const UMA_AUTH_NOSTR_RELAY = import.meta.env.VITE_UMA_AUTH_NOSTR_RELAY || 'wss://nos.lol'
-const UMA_AUTH_REDIRECT_URI = import.meta.env.VITE_UMA_AUTH_REDIRECT_URI || window.location.origin
+const UMA_AUTH_REDIRECT_URI = `${window.location.origin}/oauth/callback`
 
 const TicketPurchase = () => {
   const { eventId } = useParams()
@@ -401,15 +401,17 @@ const TicketPurchase = () => {
                     ) : (
                       <div className="space-y-3">
                         {UMA_AUTH_APP_IDENTITY_PUBKEY ? (
-                          <UmaConnectButton
-                            app-identity-pubkey={UMA_AUTH_APP_IDENTITY_PUBKEY}
-                            nostr-relay={UMA_AUTH_NOSTR_RELAY}
-                            redirect-uri={UMA_AUTH_REDIRECT_URI}
-                            required-commands={['pay_invoice']}
-                            budget-amount="100000"
-                            budget-currency="SAT"
-                            budget-period="monthly"
-                          />
+                          <div onClick={() => sessionStorage.setItem('oauth_return_to', window.location.pathname)}>
+                            <UmaConnectButton
+                              app-identity-pubkey={UMA_AUTH_APP_IDENTITY_PUBKEY}
+                              nostr-relay={UMA_AUTH_NOSTR_RELAY}
+                              redirect-uri={UMA_AUTH_REDIRECT_URI}
+                              required-commands={['pay_invoice']}
+                              budget-amount="100000"
+                              budget-currency="SAT"
+                              budget-period="monthly"
+                            />
+                          </div>
                         ) : (
                           <div className="flex items-center gap-2 p-3 bg-gray-50 border border-gray-200 rounded-lg">
                             <Wallet className="w-5 h-5 text-gray-400" />
