@@ -115,6 +115,28 @@ export const AuthProvider = ({ children }) => {
     setUser(null)
   }
 
+  const deleteAccount = async () => {
+    try {
+      const response = await fetch(`${config.apiUrl}/api/users/${user.id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.message || 'Failed to delete account')
+      }
+
+      logout()
+      return { success: true }
+    } catch (error) {
+      console.error('Delete account failed:', error)
+      return { success: false, error: error.message }
+    }
+  }
+
   const value = {
     user,
     token,
@@ -123,6 +145,7 @@ export const AuthProvider = ({ children }) => {
     login,
     register,
     logout,
+    deleteAccount,
     checkAuthStatus
   }
 

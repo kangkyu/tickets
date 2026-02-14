@@ -19,6 +19,7 @@ const TicketPurchase = () => {
   const [isCreatingPayment, setIsCreatingPayment] = useState(false)
   const [paymentError, setPaymentError] = useState(null)
   const [walletConnected, setWalletConnected] = useState(false)
+  const [walletChecked, setWalletChecked] = useState(false)
   const [walletError, setWalletError] = useState(null)
 
   // Check if user already has a wallet connection stored
@@ -31,9 +32,14 @@ const TicketPurchase = () => {
       })
       if (response.ok) {
         setWalletConnected(true)
+        // Clear stale UMA SDK OAuth state since wallet is already connected
+        localStorage.removeItem('uma-connect')
       }
     } catch (error) {
-      // No connection stored, that's fine
+      // No connection stored — also clear stale OAuth state to prevent popup
+      localStorage.removeItem('uma-connect')
+    } finally {
+      setWalletChecked(true)
     }
   }, [token])
 
@@ -386,7 +392,7 @@ const TicketPurchase = () => {
                 </div>
 
                 {/* Wallet Connect */}
-                {event.price_sats > 0 && (
+                {event.price_sats > 0 && walletChecked && (
                   <div className="space-y-4">
                     <h3 className="text-lg font-medium text-gray-900">Connect Wallet</h3>
                     <p className="text-sm text-gray-600">

@@ -55,12 +55,12 @@ func (r *userRepository) GetByEmail(email string) (*models.User, error) {
 
 func (r *userRepository) Update(user *models.User) error {
 	query := `
-		UPDATE users 
-		SET email = $1, name = $2, updated_at = $3 
-		WHERE id = $4`
+		UPDATE users
+		SET email = $1, name = $2, password_hash = $3, updated_at = $4
+		WHERE id = $5`
 
 	user.UpdatedAt = time.Now()
-	_, err := r.db.Exec(query, user.Email, user.Name, user.UpdatedAt, user.ID)
+	_, err := r.db.Exec(query, user.Email, user.Name, user.PasswordHash, user.UpdatedAt, user.ID)
 	return err
 }
 

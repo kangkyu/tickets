@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom'
-import { Calendar, Ticket, User, Menu, X, LogOut, LogIn } from 'lucide-react'
+import { Calendar, Ticket, User, Menu, X, LogOut, LogIn, Trash2 } from 'lucide-react'
 import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 
@@ -7,7 +7,7 @@ const Layout = ({ children }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false)
   const location = useLocation()
-  const { user, isAuthenticated, logout } = useAuth()
+  const { user, isAuthenticated, logout, deleteAccount } = useAuth()
   const userMenuRef = useRef(null)
 
   const navigation = [
@@ -43,6 +43,14 @@ const Layout = ({ children }) => {
 
   const handleLogout = () => {
     logout()
+    setIsUserMenuOpen(false)
+  }
+
+  const handleDeleteAccount = async () => {
+    if (!window.confirm('Are you sure you want to delete your account? This cannot be undone.')) {
+      return
+    }
+    await deleteAccount()
     setIsUserMenuOpen(false)
   }
 
@@ -142,6 +150,14 @@ const Layout = ({ children }) => {
                         <LogOut className="w-4 h-4 mr-2" />
                         Sign Out
                       </button>
+
+                      <button
+                        onClick={handleDeleteAccount}
+                        className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50 border-t border-gray-100"
+                      >
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        Delete Account
+                      </button>
                     </div>
                   )}
                 </div>
@@ -230,6 +246,16 @@ const Layout = ({ children }) => {
                   >
                     <LogOut className="w-5 h-5 mr-3" />
                     Sign Out
+                  </button>
+                  <button
+                    onClick={() => {
+                      handleDeleteAccount()
+                      setIsMobileMenuOpen(false)
+                    }}
+                    className="flex items-center w-full px-3 py-2 text-base font-medium text-red-600 hover:bg-red-50"
+                  >
+                    <Trash2 className="w-5 h-5 mr-3" />
+                    Delete Account
                   </button>
                 </div>
               ) : (
