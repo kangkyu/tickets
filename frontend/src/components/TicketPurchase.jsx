@@ -58,9 +58,7 @@ const TicketPurchase = () => {
     register,
     handleSubmit,
     formState: { errors, isValid },
-    watch,
-    setValue,
-    trigger
+    watch
   } = useForm({
     defaultValues: {
       eventId: parseInt(eventId),
@@ -76,58 +74,12 @@ const TicketPurchase = () => {
 
   // UMA address validation
   const validateUMAAddress = (address) => {
-    if (!address) return { isValid: false, error: 'UMA address is required' }
-    
-    // UMA addresses follow the format: $username@domain.com
+    if (!address) return 'UMA address is required'
     const umaRegex = /^\$[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/
-    
     if (!umaRegex.test(address)) {
-      return { 
-        isValid: false, 
-        error: 'Invalid UMA address format. Use format: $username@domain.com' 
-      }
+      return 'Invalid UMA address format. Use format: $username@domain.com'
     }
-    
-    return { isValid: true, error: null }
-  }
-
-  // Handle UMA address validation
-  const handleUMAAddressChange = async (e) => {
-    const address = e.target.value
-    setValue('umaAddress', address)
-    
-    // Trigger validation immediately
-    const validation = validateUMAAddress(address)
-    if (validation.isValid) {
-      // Clear any existing errors
-      setValue('umaAddress', address, { shouldValidate: true, shouldDirty: true })
-    } else {
-      // Set the error
-      setValue('umaAddress', address, { shouldValidate: true, shouldDirty: true })
-    }
-    
-    // Trigger form validation
-    await trigger('umaAddress')
-  }
-
-  // Check if form is valid for submission
-  const isFormValid = () => {
-    const umaAddress = watchedValues.umaAddress
-    const userName = watchedValues.userName
-    const userEmail = watchedValues.userEmail
-    
-    const umaValid = validateUMAAddress(umaAddress).isValid
-    
-    // Debug logging
-    console.log('Form validation state:', {
-      umaAddress,
-      userName,
-      userEmail,
-      umaValid,
-      allValid: umaAddress && userName && userEmail && umaValid
-    })
-    
-    return umaAddress && userName && userEmail && umaValid
+    return true
   }
 
   // Handle form submission
@@ -283,7 +235,7 @@ const TicketPurchase = () => {
             <div className="card">
               <h2 className="text-xl font-semibold text-gray-900 mb-6">Ticket Information</h2>
               
-              <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+              <form onSubmit={handleSubmit(onSubmit, (errs) => console.error('Form validation errors:', errs))} className="space-y-6">
                 {/* Quantity */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -358,32 +310,28 @@ const TicketPurchase = () => {
                       <Zap className="absolute left-3 top-1/2 transform -translate-y-1/2 text-uma-600 w-5 h-5" />
                       <input
                         type="text"
-                        {...register('umaAddress', { 
+                        {...register('umaAddress', {
                           required: 'UMA address is required',
-                          validate: (value) => {
-                            const validation = validateUMAAddress(value)
-                            return validation.isValid || validation.error
-                          }
+                          validate: validateUMAAddress
                         })}
-                        onChange={handleUMAAddressChange}
                         className={`input-field pl-10 ${
-                          watchedValues.umaAddress && validateUMAAddress(watchedValues.umaAddress).isValid
+                          watchedValues.umaAddress && validateUMAAddress(watchedValues.umaAddress) === true
                             ? 'border-green-500 focus:border-green-500 focus:ring-green-500'
-                            : watchedValues.umaAddress && !validateUMAAddress(watchedValues.umaAddress).isValid
+                            : watchedValues.umaAddress
                             ? 'border-red-500 focus:border-red-500 focus:ring-red-500'
                             : 'border-uma-200 focus:border-uma-500 focus:ring-uma-500'
                         }`}
                         placeholder="$username@domain.com"
                       />
-                      {watchedValues.umaAddress && validateUMAAddress(watchedValues.umaAddress).isValid && (
+                      {watchedValues.umaAddress && validateUMAAddress(watchedValues.umaAddress) === true && (
                         <CheckCircle className="absolute right-3 top-1/2 transform -translate-y-1/2 text-green-500 w-5 h-5" />
                       )}
                     </div>
                     {errors.umaAddress && (
                       <p className="mt-1 text-sm text-red-600">{errors.umaAddress.message}</p>
                     )}
-                    {watchedValues.umaAddress && validateUMAAddress(watchedValues.umaAddress).isValid && (
-                      <p className="mt-1 text-sm text-green-600">✓ Valid UMA address</p>
+                    {watchedValues.umaAddress && validateUMAAddress(watchedValues.umaAddress) === true && (
+                      <p className="mt-1 text-sm text-green-600">Valid UMA address</p>
                     )}
                     <p className="mt-1 text-xs text-gray-500">
                       Enter your UMA address for Lightning Network payment processing
@@ -448,7 +396,7 @@ const TicketPurchase = () => {
                 {/* Submit Button */}
                 <button
                   type="submit"
-                  disabled={!isFormValid() || isCreatingPayment}
+                  disabled={!isValid || isCreatingPayment}
                   className="btn-uma w-full disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isCreatingPayment ? 'Creating Payment...' : 'Continue to Payment'}
