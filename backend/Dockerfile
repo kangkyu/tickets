@@ -1,5 +1,5 @@
 # Build stage
-FROM golang:1.22 AS builder
+FROM golang:1.24 AS builder
 
 # Install git, ca-certificates, and build dependencies for CGO
 RUN apt-get update && apt-get install -y \
