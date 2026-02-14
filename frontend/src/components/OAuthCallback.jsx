@@ -1,13 +1,27 @@
-import { useEffect, useCallback } from 'react'
+import { useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useOAuth } from '@uma-sdk/uma-auth-client'
 import { useAuth } from '../contexts/AuthContext'
 import config from '../config/api'
 
 const OAuthCallback = () => {
-  const { nwcConnectionUri } = useOAuth()
+  const { nwcConnectionUri, oAuthTokenExchange } = useOAuth()
   const { token } = useAuth()
   const navigate = useNavigate()
+  const exchangeStarted = useRef(false)
+
+  // Exchange the authorization code for NWC connection URI
+  useEffect(() => {
+    if (exchangeStarted.current || nwcConnectionUri) return
+    exchangeStarted.current = true
+
+    oAuthTokenExchange().catch((error) => {
+      console.error('OAuth token exchange failed:', error)
+      const returnTo = sessionStorage.getItem('oauth_return_to') || '/'
+      sessionStorage.removeItem('oauth_return_to')
+      navigate(returnTo, { replace: true })
+    })
+  }, [nwcConnectionUri, oAuthTokenExchange, navigate])
 
   const storeAndRedirect = useCallback(async (uri) => {
     if (!token) return
