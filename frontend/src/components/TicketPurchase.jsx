@@ -31,9 +31,12 @@ const TicketPurchase = () => {
         headers: { 'Authorization': `Bearer ${token}` }
       })
       if (response.ok) {
-        setWalletConnected(true)
-        // Clear stale UMA SDK OAuth state since wallet is already connected
-        localStorage.removeItem('uma-connect')
+        const data = await response.json()
+        if (data.data?.connected) {
+          setWalletConnected(true)
+          // Clear stale UMA SDK OAuth state since wallet is already connected
+          localStorage.removeItem('uma-connect')
+        }
       }
     } catch (error) {
       // No connection stored — also clear stale OAuth state to prevent popup
