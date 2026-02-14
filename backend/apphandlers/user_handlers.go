@@ -366,14 +366,24 @@ func (h *UserHandlers) HandleGetNWCConnection(w http.ResponseWriter, r *http.Req
 
 	conn, err := h.nwcRepo.GetByUserID(user.ID)
 	if err != nil {
-		middleware.WriteError(w, http.StatusNotFound, "No wallet connection found")
+		middleware.WriteError(w, http.StatusInternalServerError, "Failed to check wallet connection")
+		return
+	}
+
+	if conn == nil {
+		middleware.WriteJSON(w, http.StatusOK, models.SuccessResponse{
+			Message: "No wallet connection found",
+			Data: map[string]interface{}{
+				"connected": false,
+			},
+		})
 		return
 	}
 
 	middleware.WriteJSON(w, http.StatusOK, models.SuccessResponse{
 		Message: "Wallet connection found",
 		Data: map[string]interface{}{
-			"connected":  conn != nil,
+			"connected":  true,
 			"expires_at": conn.ExpiresAt,
 			"created_at": conn.CreatedAt,
 		},
