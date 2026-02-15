@@ -65,6 +65,7 @@ type PaymentRepository interface {
 	GetByTicketID(ticketID int) (*models.Payment, error)
 	Update(payment *models.Payment) error
 	UpdateStatus(id int, status string) error
+	UpdatePreimage(id int, preimage string) error
 	GetPendingPayments() ([]models.Payment, error)
 	GetAvailablePaymentForEvent(eventID int) (*models.Payment, error)
 	GetOldestPendingByAmount(amountSats int64) (*models.Payment, error)

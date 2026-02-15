@@ -34,7 +34,7 @@ type UMAService interface {
 	GetNodeBalance() (*models.NodeBalance, error)
 	ValidateUMAAddress(address string) error
 	HandleUMACallback(paymentHash string, status string) error
-	PayWithNWC(bolt11 string, nwcConnectionURI string) error
+	PayWithNWC(bolt11 string, nwcConnectionURI string) (string, error)
 	GetUMASigningCertChain() string
 	GetUMAEncryptionCertChain() string
 }
@@ -456,22 +456,23 @@ func (s *LightsparkUMAService) HandleUMACallback(paymentHash string, status stri
 	return nil
 }
 
-// PayWithNWC pays a Lightning invoice using the user's NWC connection
-func (s *LightsparkUMAService) PayWithNWC(bolt11 string, nwcConnectionURI string) error {
+// PayWithNWC pays a Lightning invoice using the user's NWC connection.
+// Returns the payment preimage (proof of payment) on success.
+func (s *LightsparkUMAService) PayWithNWC(bolt11 string, nwcConnectionURI string) (string, error) {
 	s.logger.Info("Paying invoice via NWC", "bolt11_prefix", bolt11[:min(len(bolt11), 50)]+"...")
 
 	client, err := nwc.NewClient(nwcConnectionURI)
 	if err != nil {
-		return fmt.Errorf("failed to create NWC client: %w", err)
+		return "", fmt.Errorf("failed to create NWC client: %w", err)
 	}
 
 	result, err := client.PayInvoice(bolt11)
 	if err != nil {
-		return fmt.Errorf("NWC pay_invoice failed: %w", err)
+		return "", fmt.Errorf("NWC pay_invoice failed: %w", err)
 	}
 
 	s.logger.Info("NWC payment successful", "preimage", result.Preimage, "fees_paid", result.FeesPaid)
-	return nil
+	return result.Preimage, nil
 }
 
 // createOneTimeInvoice creates a one-time LNURL Lightning invoice using Lightspark SDK.

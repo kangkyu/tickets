@@ -34,10 +34,10 @@ const TicketPurchase = () => {
         const data = await response.json()
         if (data.data?.connected) {
           setWalletConnected(true)
-          // Clear stale UMA SDK OAuth state since wallet is already connected
-          localStorage.removeItem('uma-connect')
         }
       }
+      // Clear stale UMA SDK OAuth state to prevent auto-opening modal
+      localStorage.removeItem('uma-connect')
     } catch (error) {
       // No connection stored — also clear stale OAuth state to prevent popup
       localStorage.removeItem('uma-connect')

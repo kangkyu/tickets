@@ -96,6 +96,12 @@ func (r *paymentRepository) UpdateStatus(id int, status string) error {
 	return err
 }
 
+func (r *paymentRepository) UpdatePreimage(id int, preimage string) error {
+	query := `UPDATE payments SET preimage = $1, updated_at = $2 WHERE id = $3`
+	_, err := r.db.Exec(query, preimage, time.Now(), id)
+	return err
+}
+
 func (r *paymentRepository) GetPendingPayments() ([]models.Payment, error) {
 	payments := []models.Payment{}
 	query := `SELECT * FROM payments WHERE status = 'pending' ORDER BY created_at ASC`

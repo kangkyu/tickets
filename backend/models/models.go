@@ -70,6 +70,7 @@ type Payment struct {
 	InvoiceID string     `json:"invoice_id" db:"invoice_id"`
 	Amount    int64      `json:"amount_sats" db:"amount_sats"`
 	Status    string     `json:"status" db:"status"`
+	Preimage  *string    `json:"preimage,omitempty" db:"preimage"`
 	PaidAt    *time.Time `json:"paid_at" db:"paid_at"`
 	CreatedAt time.Time  `json:"created_at" db:"created_at"`
 	UpdatedAt time.Time  `json:"updated_at" db:"updated_at"`

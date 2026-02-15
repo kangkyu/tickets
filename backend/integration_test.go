@@ -129,9 +129,9 @@ func (m *MockUMAService) GetNodeBalance() (*models.NodeBalance, error) {
 	}, nil
 }
 
-func (m *MockUMAService) PayWithNWC(bolt11 string, nwcConnectionURI string) error {
+func (m *MockUMAService) PayWithNWC(bolt11 string, nwcConnectionURI string) (string, error) {
 	m.logger.Info("Mock PayWithNWC called", "bolt11_prefix", bolt11[:20]+"...", "nwc_uri_prefix", nwcConnectionURI[:20]+"...")
-	return nil
+	return "mock_preimage", nil
 }
 
 func (m *MockUMAService) HandleUMACallback(paymentHash string, status string) error {

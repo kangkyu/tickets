@@ -100,7 +100,8 @@ CREATE TABLE public.payments (
     status character varying(50) DEFAULT 'pending'::character varying,
     paid_at timestamp without time zone,
     created_at timestamp without time zone DEFAULT now(),
-    updated_at timestamp without time zone DEFAULT now()
+    updated_at timestamp without time zone DEFAULT now(),
+    preimage text
 );
 
 
@@ -516,4 +517,5 @@ INSERT INTO public.schema_migrations (version) VALUES
     ('20250901202340'),
     ('20260210000001'),
     ('20260212000001'),
-    ('20260213000001');
+    ('20260213000001'),
+    ('20260214000001');
