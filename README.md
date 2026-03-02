@@ -36,18 +36,26 @@ Enable event organizers to sell tickets priced in Bitcoin (satoshis) and let att
 In test mode, `CreateTestModePayment` can simulate step 5-8 for local development.
 
 ### Tech Stack
-- **Frontend:** React (Vite), Tailwind CSS, deployed on AWS Amplify
+- **Frontend:** React (Vite), Tailwind CSS, deployed to S3 + CloudFront
 - **Backend:** Go, Gorilla Mux, PostgreSQL, deployed on ECS Fargate
 - **Payments:** Lightspark SDK, UMA Go SDK, UMA Request protocol
-- **Infra:** Terraform (VPC, ALB, ECS, RDS, ECR, Amplify)
+- **Infra:** Terraform (VPC, ALB, ECS, RDS, ECR, S3, CloudFront)
+
+## Architecture
+
+Single CloudFront distribution serves both frontend and backend:
+- `/*` → S3 (frontend static files)
+- `/api/*`, `/uma/*`, `/.well-known/*` → ALB → ECS Fargate (backend)
 
 ## Deploy
 
-Backend first, then frontend (Amplify deploys on `git push`):
-
+### Infrastructure
 ```sh
 terraform apply -var-file="terraform.tfvars"
+```
 
+### Backend
+```sh
 cd backend
 docker build --platform linux/amd64 -t 800097198265.dkr.ecr.us-east-1.amazonaws.com/uma-tickets-staging/backend:latest .
 
@@ -60,14 +68,23 @@ aws ecs update-service --cluster uma-tickets-staging-cluster --service uma-ticke
 
 # check logs
 aws logs tail "/ecs/uma-tickets-staging-backend" --region us-east-1 --since 10m
-
-# frontend deploys automatically
-git push origin master
 ```
 
-
-Locally run
-
+### Frontend
 ```sh
-VITE_API_BASE_URL=http://localhost:8080 npm run dev
+cd frontend
+npm run build
+aws s3 sync dist/ s3://uma-tickets-staging-frontend --delete
+aws cloudfront create-invalidation --distribution-id <DISTRIBUTION_ID> --paths "/*"
+```
+
+Both backend and frontend deploy automatically via GitHub Actions on push to master.
+
+### Local Development
+```sh
+# backend
+cd backend && go run main.go
+
+# frontend
+cd frontend && VITE_API_BASE_URL=http://localhost:8080 npm run dev
 ```
