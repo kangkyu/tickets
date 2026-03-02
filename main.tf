@@ -35,17 +35,6 @@ variable "app_name" {
   default     = "uma-tickets"
 }
 
-variable "github_repo_url" {
-  description = "GitHub repository URL"
-  type        = string
-}
-
-variable "github_access_token" {
-  description = "GitHub access token for Amplify"
-  type        = string
-  sensitive   = true
-}
-
 variable "lightspark_client_id" {
   description = "Lightspark API Client ID"
   type        = string
@@ -103,12 +92,6 @@ variable "uma_encryption_cert_chain" {
 variable "uma_auth_app_identity_pubkey" {
   description = "UMA Auth app identity public key (Nostr hex pubkey)"
   type        = string
-}
-
-variable "main_branch_name" {
-  description = "Main branch name (e.g., master, main)"
-  type        = string
-  default     = "master"
 }
 
 variable "database_name" {
@@ -427,7 +410,7 @@ resource "aws_ecs_task_definition" "backend" {
         },
         {
           name  = "DOMAIN"
-          value = aws_cloudfront_distribution.backend.domain_name
+          value = aws_cloudfront_distribution.main.domain_name
         }
       ]
 
@@ -768,54 +751,9 @@ resource "random_password" "jwt_secret" {
   special = true
 }
 
-# AWS Amplify App - Simplified
-resource "aws_amplify_app" "frontend" {
-  name         = "${var.app_name}-frontend"
-  repository   = var.github_repo_url
-  access_token = var.github_access_token
-
-  build_spec = <<-EOT
-version: 1
-applications:
-  - appRoot: frontend
-    frontend:
-      phases:
-        preBuild:
-          commands:
-            - npm ci --include=dev
-            - 'export PATH="$PWD/node_modules/.bin:$PATH"'
-        build:
-          commands:
-            - 'export PATH="$PWD/node_modules/.bin:$PATH"'
-            - npm run build
-      artifacts:
-        baseDirectory: dist
-        files:
-          - '**/*'
-      cache:
-        paths:
-          - node_modules/**/*
-EOT
-
-  # Proxy .well-known requests to the API backend so VASPs (e.g. test.uma.me)
-  # can verify UMA invoice signatures and discover LNURL/UMA endpoints.
-  custom_rule {
-    source = "/.well-known/<*>"
-    target = "https://${aws_cloudfront_distribution.backend.domain_name}/.well-known/<*>"
-    status = "200"
-  }
-
-  custom_rule {
-    source = "/<*>"
-    target = "/index.html"
-    status = "404-200"
-  }
-
-  # Environment variables for frontend
-  environment_variables = {
-    NODE_ENV                  = "production"
-    AMPLIFY_MONOREPO_APP_ROOT = "frontend"
-  }
+# S3 bucket for frontend static files
+resource "aws_s3_bucket" "frontend" {
+  bucket = "${var.app_name}-frontend"
 
   tags = {
     Name        = "${var.app_name}-frontend"
@@ -823,30 +761,78 @@ EOT
   }
 }
 
-# Updated Amplify branch with CloudFront support
-resource "aws_amplify_branch" "main" {
-  app_id            = aws_amplify_app.frontend.id
-  branch_name       = var.main_branch_name
-  enable_auto_build = true
+resource "aws_s3_bucket_public_access_block" "frontend" {
+  bucket = aws_s3_bucket.frontend.id
 
-  environment_variables = {
-    VITE_API_BASE_URL                 = "https://${aws_cloudfront_distribution.backend.domain_name}"
-    VITE_UMA_AUTH_APP_IDENTITY_PUBKEY = var.uma_auth_app_identity_pubkey
-    VITE_UMA_AUTH_REDIRECT_URI        = "https://${var.main_branch_name}.${aws_amplify_app.frontend.default_domain}/oauth/callback"
-    NODE_ENV                          = "production"
-  }
-
-  tags = {
-    Name        = "${var.app_name}-frontend-${var.main_branch_name}"
-    Environment = var.environment
-  }
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
 }
 
-# CloudFront distribution for backend API
-resource "aws_cloudfront_distribution" "backend" {
-  enabled = true
-  comment = "${var.app_name} backend API"
+# CloudFront OAC for S3 access
+resource "aws_cloudfront_origin_access_control" "frontend" {
+  name                              = "${var.app_name}-frontend-oac"
+  origin_access_control_origin_type = "s3"
+  signing_behavior                  = "always"
+  signing_protocol                  = "sigv4"
+}
 
+# S3 bucket policy allowing CloudFront access
+resource "aws_s3_bucket_policy" "frontend" {
+  bucket = aws_s3_bucket.frontend.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "AllowCloudFrontServicePrincipal"
+        Effect = "Allow"
+        Principal = {
+          Service = "cloudfront.amazonaws.com"
+        }
+        Action   = "s3:GetObject"
+        Resource = "${aws_s3_bucket.frontend.arn}/*"
+        Condition = {
+          StringEquals = {
+            "AWS:SourceArn" = aws_cloudfront_distribution.main.arn
+          }
+        }
+      }
+    ]
+  })
+}
+
+# CloudFront Function for SPA routing (rewrites non-file paths to /index.html)
+resource "aws_cloudfront_function" "spa_routing" {
+  name    = "${var.app_name}-spa-routing"
+  runtime = "cloudfront-js-2.0"
+  code    = <<-EOT
+function handler(event) {
+  var request = event.request;
+  var uri = request.uri;
+  if (!uri.includes('.')) {
+    request.uri = '/index.html';
+  }
+  return request;
+}
+EOT
+}
+
+# Single CloudFront distribution for frontend (S3) and backend (ALB)
+resource "aws_cloudfront_distribution" "main" {
+  enabled             = true
+  default_root_object = "index.html"
+  comment             = var.app_name
+
+  # S3 origin for frontend
+  origin {
+    domain_name              = aws_s3_bucket.frontend.bucket_regional_domain_name
+    origin_id                = "s3"
+    origin_access_control_id = aws_cloudfront_origin_access_control.frontend.id
+  }
+
+  # ALB origin for backend API
   origin {
     domain_name = aws_lb.main.dns_name
     origin_id   = "alb"
@@ -859,7 +845,33 @@ resource "aws_cloudfront_distribution" "backend" {
     }
   }
 
+  # Default: serve frontend from S3
   default_cache_behavior {
+    allowed_methods        = ["GET", "HEAD", "OPTIONS"]
+    cached_methods         = ["GET", "HEAD"]
+    target_origin_id       = "s3"
+    viewer_protocol_policy = "redirect-to-https"
+
+    forwarded_values {
+      query_string = false
+      cookies {
+        forward = "none"
+      }
+    }
+
+    function_association {
+      event_type   = "viewer-request"
+      function_arn = aws_cloudfront_function.spa_routing.arn
+    }
+
+    min_ttl     = 0
+    default_ttl = 86400
+    max_ttl     = 31536000
+  }
+
+  # /api/* → ALB
+  ordered_cache_behavior {
+    path_pattern           = "/api/*"
     allowed_methods        = ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"]
     cached_methods         = ["GET", "HEAD"]
     target_origin_id       = "alb"
@@ -868,7 +880,48 @@ resource "aws_cloudfront_distribution" "backend" {
     forwarded_values {
       query_string = true
       headers      = ["*"]
+      cookies {
+        forward = "all"
+      }
+    }
 
+    min_ttl     = 0
+    default_ttl = 0
+    max_ttl     = 0
+  }
+
+  # /uma/* → ALB
+  ordered_cache_behavior {
+    path_pattern           = "/uma/*"
+    allowed_methods        = ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"]
+    cached_methods         = ["GET", "HEAD"]
+    target_origin_id       = "alb"
+    viewer_protocol_policy = "redirect-to-https"
+
+    forwarded_values {
+      query_string = true
+      headers      = ["*"]
+      cookies {
+        forward = "all"
+      }
+    }
+
+    min_ttl     = 0
+    default_ttl = 0
+    max_ttl     = 0
+  }
+
+  # /.well-known/* → ALB
+  ordered_cache_behavior {
+    path_pattern           = "/.well-known/*"
+    allowed_methods        = ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"]
+    cached_methods         = ["GET", "HEAD"]
+    target_origin_id       = "alb"
+    viewer_protocol_policy = "redirect-to-https"
+
+    forwarded_values {
+      query_string = true
+      headers      = ["*"]
       cookies {
         forward = "all"
       }
@@ -890,28 +943,28 @@ resource "aws_cloudfront_distribution" "backend" {
   }
 
   tags = {
-    Name        = "${var.app_name}-backend-cf"
+    Name        = "${var.app_name}-cf"
     Environment = var.environment
   }
 }
 
-output "backend_url" {
-  description = "Backend API URL (CloudFront)"
-  value       = "https://${aws_cloudfront_distribution.backend.domain_name}"
+output "app_url" {
+  description = "Application URL (CloudFront)"
+  value       = "https://${aws_cloudfront_distribution.main.domain_name}"
 }
 
-output "frontend_url" {
-  description = "Frontend URL"
-  value       = "https://${aws_amplify_branch.main.branch_name}.${aws_amplify_app.frontend.default_domain}"
+output "frontend_bucket" {
+  description = "S3 bucket for frontend deployment"
+  value       = aws_s3_bucket.frontend.bucket
+}
+
+output "cloudfront_distribution_id" {
+  description = "CloudFront distribution ID (for cache invalidation)"
+  value       = aws_cloudfront_distribution.main.id
 }
 
 output "database_endpoint" {
   description = "RDS endpoint"
   value       = aws_db_instance.postgres.endpoint
   sensitive   = true
-}
-
-output "amplify_app_id" {
-  description = "Amplify App ID"
-  value       = aws_amplify_app.frontend.id
 }

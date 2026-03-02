@@ -64,3 +64,10 @@ aws logs tail "/ecs/uma-tickets-staging-backend" --region us-east-1 --since 10m
 # frontend deploys automatically
 git push origin master
 ```
+
+
+Locally run
+
+```sh
+VITE_API_BASE_URL=http://localhost:8080 npm run dev
+```
