@@ -12,12 +12,6 @@ provider "aws" {
   region = var.aws_region
 }
 
-# Provider for us-east-1 (required for CloudFront ACM certificate)
-provider "aws" {
-  alias  = "us_east_1"
-  region = "us-east-1"
-}
-
 # Data sources
 data "aws_caller_identity" "current" {}
 data "aws_region" "current" {}
@@ -39,12 +33,6 @@ variable "app_name" {
   description = "Application name"
   type        = string
   default     = "uma-tickets"
-}
-
-variable "domain_name" {
-  description = "Domain name for the application"
-  type        = string
-  default     = "fanmeeting.org"
 }
 
 variable "github_repo_url" {
@@ -284,13 +272,6 @@ resource "aws_security_group" "alb" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  ingress {
-    from_port   = 443
-    to_port     = 443
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
   egress {
     from_port   = 0
     to_port     = 0
@@ -446,7 +427,7 @@ resource "aws_ecs_task_definition" "backend" {
         },
         {
           name  = "DOMAIN"
-          value = var.domain_name
+          value = aws_cloudfront_distribution.backend.domain_name
         }
       ]
 
@@ -820,7 +801,7 @@ EOT
   # can verify UMA invoice signatures and discover LNURL/UMA endpoints.
   custom_rule {
     source = "/.well-known/<*>"
-    target = "https://api.${var.domain_name}/.well-known/<*>"
+    target = "https://${aws_cloudfront_distribution.backend.domain_name}/.well-known/<*>"
     status = "200"
   }
 
@@ -848,11 +829,10 @@ resource "aws_amplify_branch" "main" {
   branch_name       = var.main_branch_name
   enable_auto_build = true
 
-  # Updated environment variables for the new setup
   environment_variables = {
-    VITE_API_BASE_URL                 = "https://api.${var.domain_name}"
+    VITE_API_BASE_URL                 = "https://${aws_cloudfront_distribution.backend.domain_name}"
     VITE_UMA_AUTH_APP_IDENTITY_PUBKEY = var.uma_auth_app_identity_pubkey
-    VITE_UMA_AUTH_REDIRECT_URI        = "https://${var.domain_name}/oauth/callback"
+    VITE_UMA_AUTH_REDIRECT_URI        = "https://${var.main_branch_name}.${aws_amplify_app.frontend.default_domain}/oauth/callback"
     NODE_ENV                          = "production"
   }
 
@@ -862,74 +842,62 @@ resource "aws_amplify_branch" "main" {
   }
 }
 
-# Amplify custom domain
-resource "aws_amplify_domain_association" "frontend" {
-  app_id      = aws_amplify_app.frontend.id
-  domain_name = var.domain_name
+# CloudFront distribution for backend API
+resource "aws_cloudfront_distribution" "backend" {
+  enabled = true
+  comment = "${var.app_name} backend API"
 
-  sub_domain {
-    branch_name = aws_amplify_branch.main.branch_name
-    prefix      = ""
+  origin {
+    domain_name = aws_lb.main.dns_name
+    origin_id   = "alb"
+
+    custom_origin_config {
+      http_port              = 80
+      https_port             = 443
+      origin_protocol_policy = "http-only"
+      origin_ssl_protocols   = ["TLSv1.2"]
+    }
   }
 
-  sub_domain {
-    branch_name = aws_amplify_branch.main.branch_name
-    prefix      = "www"
+  default_cache_behavior {
+    allowed_methods        = ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"]
+    cached_methods         = ["GET", "HEAD"]
+    target_origin_id       = "alb"
+    viewer_protocol_policy = "redirect-to-https"
+
+    forwarded_values {
+      query_string = true
+      headers      = ["*"]
+
+      cookies {
+        forward = "all"
+      }
+    }
+
+    min_ttl     = 0
+    default_ttl = 0
+    max_ttl     = 0
   }
-}
 
-# ACM certificate for ALB
-resource "aws_acm_certificate" "alb" {
-  domain_name       = "api.${var.domain_name}"
-  validation_method = "DNS"
+  restrictions {
+    geo_restriction {
+      restriction_type = "none"
+    }
+  }
 
-  lifecycle {
-    create_before_destroy = true
+  viewer_certificate {
+    cloudfront_default_certificate = true
   }
 
   tags = {
-    Name        = "${var.app_name}-alb-cert"
+    Name        = "${var.app_name}-backend-cf"
     Environment = var.environment
   }
 }
 
-# HTTPS listener for ALB
-resource "aws_lb_listener" "https" {
-  load_balancer_arn = aws_lb.main.arn
-  port              = "443"
-  protocol          = "HTTPS"
-  ssl_policy        = "ELBSecurityPolicy-TLS-1-2-2017-01"
-  certificate_arn   = aws_acm_certificate.alb.arn
-
-  default_action {
-    type             = "forward"
-    target_group_arn = aws_lb_target_group.backend.arn
-  }
-}
-
-output "acm_validation_records" {
-  description = "DNS records to add at Name.com for ACM certificate validation"
-  value = {
-    for dvo in aws_acm_certificate.alb.domain_validation_options : dvo.domain_name => {
-      type  = dvo.resource_record_type
-      name  = dvo.resource_record_name
-      value = dvo.resource_record_value
-    }
-  }
-}
-
-output "backend_dns_record" {
-  description = "CNAME record to add at Name.com for api subdomain"
-  value = {
-    type  = "CNAME"
-    name  = "api.${var.domain_name}"
-    value = aws_lb.main.dns_name
-  }
-}
-
 output "backend_url" {
-  description = "Backend API URL"
-  value       = "https://${aws_lb.main.dns_name}"
+  description = "Backend API URL (CloudFront)"
+  value       = "https://${aws_cloudfront_distribution.backend.domain_name}"
 }
 
 output "frontend_url" {
@@ -946,9 +914,4 @@ output "database_endpoint" {
 output "amplify_app_id" {
   description = "Amplify App ID"
   value       = aws_amplify_app.frontend.id
-}
-
-output "custom_domain_url" {
-  description = "Custom domain URL"
-  value       = "https://${var.domain_name}"
 }

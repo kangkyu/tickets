@@ -43,7 +43,7 @@ CREATE DATABASE tickets_uma;
 
 3. Set environment variables:
 ```bash
-export DATABASE_URL="postgres://username:password@localhost:5432/tickets_uma?sslmode=disable"
+export DATABASE_URL="postgres://postgres:password@localhost:5432/tickets_uma?sslmode=disable"
 export LIGHTSPARK_API_TOKEN="your_token"
 export LIGHTSPARK_NODE_ID="your_node_id"
 export JWT_SECRET="your_secret_key"
