@@ -34,7 +34,7 @@ type Server struct {
 	eventHandlers   *apphandlers.EventHandlers
 	ticketHandlers  *apphandlers.TicketHandlers
 	paymentHandlers *apphandlers.PaymentHandlers
-	lnurlHandlers   *apphandlers.LnurlHandlers
+	umaHandlers     *apphandlers.UmaHandlers
 }
 
 func NewServer(db *sqlx.DB, logger *slog.Logger, config *config.Config) *Server {
@@ -102,13 +102,10 @@ func (s *Server) setupRoutes() {
 	// Health check endpoint
 	s.router.HandleFunc("/health", s.handleHealth).Methods("GET")
 
-	// LNURL-pay resolution endpoint for $tickets@fanmeeting.org
-	s.router.HandleFunc("/.well-known/lnurlp/tickets", s.lnurlHandlers.HandleLnurlPay).Methods("GET", "OPTIONS")
-
 	// UMA protocol endpoints
-	s.router.HandleFunc("/.well-known/lnurlpubkey", s.lnurlHandlers.HandlePubKeyRequest).Methods("GET", "OPTIONS")
-	s.router.HandleFunc("/.well-known/uma-configuration", s.lnurlHandlers.HandleUmaConfiguration).Methods("POST", "GET", "OPTIONS")
-	s.router.HandleFunc("/uma/payreq/{ticket_id:[0-9]+}", s.lnurlHandlers.HandleUmaPayreq).Methods("POST", "GET", "OPTIONS")
+	s.router.HandleFunc("/.well-known/lnurlpubkey", s.umaHandlers.HandlePubKeyRequest).Methods("GET", "OPTIONS")
+	s.router.HandleFunc("/.well-known/uma-configuration", s.umaHandlers.HandleUmaConfiguration).Methods("POST", "GET", "OPTIONS")
+	s.router.HandleFunc("/uma/payreq/{ticket_id:[0-9]+}", s.umaHandlers.HandleUmaPayreq).Methods("POST", "GET", "OPTIONS")
 
 	// API routes
 	api := s.router.PathPrefix("/api").Subrouter()
@@ -130,9 +127,6 @@ func (s *Server) setupRoutes() {
 	api.HandleFunc("/tickets/{id:[0-9]+}/status", s.ticketHandlers.HandleTicketStatus).Methods("GET", "OPTIONS")
 	api.HandleFunc("/tickets/validate", s.ticketHandlers.HandleValidateTicket).Methods("POST", "OPTIONS")
 	api.HandleFunc("/tickets/uma-callback", s.ticketHandlers.HandleUMAPaymentCallback).Methods("POST", "OPTIONS")
-
-	// LNURL-pay callback (no auth required - called by paying wallets)
-	api.HandleFunc("/lnurl/callback", s.lnurlHandlers.HandleLnurlCallback).Methods("GET", "OPTIONS")
 
 	// Payment webhook (no auth required)
 	api.HandleFunc("/webhooks/payment", s.paymentHandlers.HandlePaymentWebhook).Methods("POST", "OPTIONS")
@@ -186,15 +180,15 @@ func (s *Server) initializeHandlers() {
 	s.eventHandlers = apphandlers.NewEventHandlers(s.eventRepo, s.paymentRepo, s.ticketRepo, s.umaService, s.umaRepo, s.logger, s.config)
 	s.ticketHandlers = apphandlers.NewTicketHandlers(s.ticketRepo, s.eventRepo, s.paymentRepo, s.umaRepo, s.nwcRepo, s.umaService, s.logger, s.config.Domain)
 	s.paymentHandlers = apphandlers.NewPaymentHandlers(s.paymentRepo, s.ticketRepo, s.umaService, s.lightsparkClient, s.logger)
-	s.lnurlHandlers = apphandlers.NewLnurlHandlers(s.paymentRepo, s.umaService, s.lightsparkClient, s.logger, s.config.Domain, s.config.LightsparkNodeID, s.config.UMASigningPrivKeyHex)
+	s.umaHandlers = apphandlers.NewUmaHandlers(s.paymentRepo, s.umaService, s.logger, s.config.Domain, s.config.UMASigningPrivKeyHex)
 }
 
 // CORS middleware
 func (s *Server) corsMiddleware(next http.Handler) http.Handler {
 	return handlers.CORS(
 		handlers.AllowedOrigins([]string{
-			"http://localhost:3000",  // Local development
-			"https://fanmeeting.org", // Production domain
+			"http://localhost:3000",                          // Local development
+			"https://" + s.config.Domain,                    // Production (CloudFront)
 		}),
 		handlers.AllowedMethods([]string{"GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"}),
 		handlers.AllowedHeaders([]string{"Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin"}),

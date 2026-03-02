@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
-	"github.com/lightsparkdev/go-sdk/services"
 	"github.com/uma-universal-money-address/uma-go-sdk/uma"
 	umaprotocol "github.com/uma-universal-money-address/uma-go-sdk/uma/protocol"
 
@@ -19,112 +18,29 @@ import (
 	umaservices "tickets-by-uma/services"
 )
 
-// LnurlHandlers handles LNURL-pay protocol endpoints and UMA payreq callbacks.
-type LnurlHandlers struct {
+// UmaHandlers handles UMA protocol endpoints (payreq callbacks, pubkey, configuration).
+type UmaHandlers struct {
 	paymentRepo          repositories.PaymentRepository
 	umaService           umaservices.UMAService
-	lsClient             *services.LightsparkClient
 	logger               *slog.Logger
 	domain               string
-	nodeID               string
 	umaSigningPrivKeyHex string
 }
 
-func NewLnurlHandlers(
+func NewUmaHandlers(
 	paymentRepo repositories.PaymentRepository,
 	umaService umaservices.UMAService,
-	lsClient *services.LightsparkClient,
 	logger *slog.Logger,
 	domain string,
-	nodeID string,
 	umaSigningPrivKeyHex string,
-) *LnurlHandlers {
-	return &LnurlHandlers{
+) *UmaHandlers {
+	return &UmaHandlers{
 		paymentRepo:          paymentRepo,
 		umaService:           umaService,
-		lsClient:             lsClient,
 		logger:               logger,
 		domain:               domain,
-		nodeID:               nodeID,
 		umaSigningPrivKeyHex: umaSigningPrivKeyHex,
 	}
-}
-
-// HandleLnurlPay handles LNURL-pay initial resolution.
-// GET /.well-known/lnurlp/tickets
-//
-// When a user types $tickets@fanmeeting.org in test.uma.me,
-// test.uma.me calls this endpoint to discover payment parameters.
-func (h *LnurlHandlers) HandleLnurlPay(w http.ResponseWriter, r *http.Request) {
-	h.logger.Info("LNURL-pay resolution request")
-
-	metadata := `[["text/plain","Ticket purchase at fanmeeting.org"]]`
-	lnurlDomain := h.domain
-	if h.domain != "localhost" && h.domain != "localhost:8080" {
-		lnurlDomain = "api." + h.domain
-	}
-	callbackURL := fmt.Sprintf("https://%s/api/lnurl/callback", lnurlDomain)
-
-	response := map[string]interface{}{
-		"callback":    callbackURL,
-		"maxSendable": 10000000000, // 10M sats in msats
-		"minSendable": 1000,        // 1 sat in msats
-		"metadata":    metadata,
-		"tag":         "payRequest",
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
-}
-
-// HandleLnurlCallback handles the LNURL-pay callback.
-// GET /api/lnurl/callback?amount={msats}
-//
-// Finds the oldest pending payment matching the requested amount
-// and returns its bolt11 invoice.
-func (h *LnurlHandlers) HandleLnurlCallback(w http.ResponseWriter, r *http.Request) {
-	amountStr := r.URL.Query().Get("amount")
-	if amountStr == "" {
-		writeLnurlError(w, "amount parameter is required")
-		return
-	}
-
-	amountMsats, err := strconv.ParseInt(amountStr, 10, 64)
-	if err != nil || amountMsats <= 0 {
-		writeLnurlError(w, "invalid amount")
-		return
-	}
-
-	amountSats := amountMsats / 1000
-
-	h.logger.Info("LNURL-pay callback", "amount_sats", amountSats)
-
-	// Find the oldest pending payment with this amount
-	payment, err := h.paymentRepo.GetOldestPendingByAmount(amountSats)
-	if err != nil {
-		h.logger.Error("Failed to find pending payment", "amount_sats", amountSats, "error", err)
-		writeLnurlError(w, "No pending payment found")
-		return
-	}
-
-	if payment == nil {
-		h.logger.Warn("No pending payment for amount", "amount_sats", amountSats)
-		writeLnurlError(w, "No pending ticket for this amount")
-		return
-	}
-
-	h.logger.Info("LNURL-pay callback returning bolt11",
-		"payment_id", payment.ID,
-		"ticket_id", payment.TicketID,
-		"bolt11_prefix", payment.InvoiceID[:min(len(payment.InvoiceID), 30)]+"...")
-
-	response := map[string]interface{}{
-		"pr":     payment.InvoiceID,
-		"routes": []interface{}{},
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
 }
 
 // HandleUmaPayreq handles UMA pay request callbacks from the buyer's VASP.
@@ -132,7 +48,7 @@ func (h *LnurlHandlers) HandleLnurlCallback(w http.ResponseWriter, r *http.Reque
 //
 // When our app sends a UMA Invoice to test.uma.me and the buyer approves,
 // test.uma.me POSTs a pay request here. We create a Lightning invoice and return it.
-func (h *LnurlHandlers) HandleUmaPayreq(w http.ResponseWriter, r *http.Request) {
+func (h *UmaHandlers) HandleUmaPayreq(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	ticketIDStr := vars["ticket_id"]
 	ticketID, err := strconv.Atoi(ticketIDStr)
@@ -230,7 +146,7 @@ func (h *LnurlHandlers) HandleUmaPayreq(w http.ResponseWriter, r *http.Request) 
 
 // HandlePubKeyRequest serves UMA public keys for signature verification.
 // GET /.well-known/lnurlpubkey
-func (h *LnurlHandlers) HandlePubKeyRequest(w http.ResponseWriter, r *http.Request) {
+func (h *UmaHandlers) HandlePubKeyRequest(w http.ResponseWriter, r *http.Request) {
 	signingCertChain := h.umaService.GetUMASigningCertChain()
 	encryptionCertChain := h.umaService.GetUMAEncryptionCertChain()
 
@@ -254,37 +170,18 @@ func (h *LnurlHandlers) HandlePubKeyRequest(w http.ResponseWriter, r *http.Reque
 }
 
 // HandleUmaConfiguration serves the UMA configuration for this domain.
-// POST /.well-known/uma-configuration
-func (h *LnurlHandlers) HandleUmaConfiguration(w http.ResponseWriter, r *http.Request) {
+// GET/POST /.well-known/uma-configuration
+func (h *UmaHandlers) HandleUmaConfiguration(w http.ResponseWriter, r *http.Request) {
 	scheme := "https"
 	if h.domain == "localhost" || h.domain == "localhost:8080" {
 		scheme = "http"
 	}
-	apiDomain := h.domain
-	if h.domain != "localhost" && h.domain != "localhost:8080" {
-		apiDomain = "api." + h.domain
-	}
 	response := map[string]interface{}{
 		"uma_major_versions":   uma.GetSupportedMajorVersions(),
-		"uma_request_endpoint": fmt.Sprintf("%s://%s/uma/payreq/0", scheme, apiDomain),
+		"uma_request_endpoint": fmt.Sprintf("%s://%s/uma/payreq/0", scheme, h.domain),
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
-}
-
-// LightsparkLnurlInvoiceCreator implements the InvoiceCreator interface for LNURL invoices
-type LightsparkLnurlInvoiceCreator struct {
-	Client     *services.LightsparkClient
-	NodeId     string
-	ExpirySecs *int32
-}
-
-func (l LightsparkLnurlInvoiceCreator) CreateInvoice(amountMsats int64, metadata string, receiverIdentifier *string) (*string, error) {
-	invoice, err := l.Client.CreateLnurlInvoice(l.NodeId, amountMsats, metadata, l.ExpirySecs)
-	if err != nil {
-		return nil, err
-	}
-	return &invoice.Data.EncodedPaymentRequest, nil
 }
 
 // existingInvoiceCreator returns a pre-existing bolt11 instead of creating a new one.
@@ -313,13 +210,4 @@ var SatsCurrency = umaprotocol.Currency{
 func readBody(r *http.Request) ([]byte, error) {
 	defer r.Body.Close()
 	return io.ReadAll(r.Body)
-}
-
-func writeLnurlError(w http.ResponseWriter, reason string) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK) // LNURL spec: errors still return 200 with status=ERROR
-	json.NewEncoder(w).Encode(map[string]string{
-		"status": "ERROR",
-		"reason": reason,
-	})
 }
