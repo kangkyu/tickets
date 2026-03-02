@@ -207,43 +207,8 @@ func (h *TicketHandlers) HandlePurchaseTicket(w http.ResponseWriter, r *http.Req
 			"invoice_id", invoice.ID,
 			"uma_address", req.UMAAddress)
 
-		// Pay the invoice: try NWC first (synchronous), then fall back to UMA Request (async)
-		nwcPaid := false
-		nwcConn, err := h.nwcRepo.GetByUserID(req.UserID)
-		if err != nil {
-			h.logger.Warn("Failed to look up NWC connection", "user_id", req.UserID, "error", err)
-		}
-
-		if nwcConn != nil {
-			h.logger.Info("NWC connection found, attempting payment", "ticket_id", ticket.ID, "user_id", req.UserID)
-			preimage, err := h.umaService.PayWithNWC(invoice.Bolt11, nwcConn.ConnectionURI)
-			if err != nil {
-				h.logger.Warn("NWC pay_invoice failed, falling back to UMA Request", "ticket_id", ticket.ID, "error", err)
-			} else {
-				h.logger.Info("NWC payment succeeded", "ticket_id", ticket.ID, "preimage", preimage)
-				nwcPaid = true
-				now := time.Now()
-				_ = h.paymentRepo.UpdatePreimage(payment.ID, preimage)
-				_ = h.paymentRepo.UpdateStatus(payment.ID, "paid")
-				_ = h.ticketRepo.UpdatePaymentStatus(ticket.ID, "paid")
-				ticket.PaymentStatus = "paid"
-				ticket.PaidAt = &now
-				_ = h.ticketRepo.Update(ticket)
-			}
-		}
-
-		if !nwcPaid && nwcConn == nil {
-			h.logger.Info("No NWC connection found for user, using UMA Request", "user_id", req.UserID)
-			go func() {
-				callbackURL := fmt.Sprintf("https://%s/uma/payreq/%d", h.domain, ticket.ID)
-				if err := h.umaService.SendUMARequest(req.UMAAddress, event.PriceSats, callbackURL); err != nil {
-					h.logger.Error("SendUMARequest failed, marking ticket as failed",
-						"ticket_id", ticket.ID, "error", err)
-					_ = h.ticketRepo.UpdatePaymentStatus(ticket.ID, "failed")
-					_ = h.paymentRepo.UpdateStatus(payment.ID, "failed")
-				}
-			}()
-		}
+		// Pay the invoice asynchronously: try NWC first, then fall back to UMA Request
+		go h.processPayment(req.UserID, ticket.ID, payment.ID, invoice.Bolt11)
 	}
 
 	// Return ticket and event information
@@ -598,4 +563,33 @@ func (h *TicketHandlers) validatePurchaseRequest(req *models.TicketPurchaseReque
 	}
 
 	return nil
+}
+
+// processPayment pays the invoice via the user's NWC connection.
+func (h *TicketHandlers) processPayment(userID, ticketID, paymentID int, bolt11 string) {
+	nwcConn, err := h.nwcRepo.GetByUserID(userID)
+	if err != nil {
+		h.logger.Warn("Failed to look up NWC connection", "user_id", userID, "error", err)
+	}
+
+	if nwcConn == nil {
+		h.logger.Warn("No NWC connection found, marking ticket as failed", "user_id", userID, "ticket_id", ticketID)
+		_ = h.ticketRepo.UpdatePaymentStatus(ticketID, "failed")
+		_ = h.paymentRepo.UpdateStatus(paymentID, "failed")
+		return
+	}
+
+	h.logger.Info("NWC connection found, attempting payment", "ticket_id", ticketID, "user_id", userID)
+	preimage, err := h.umaService.PayWithNWC(bolt11, nwcConn.ConnectionURI)
+	if err != nil {
+		h.logger.Warn("NWC pay_invoice failed", "ticket_id", ticketID, "error", err)
+		_ = h.ticketRepo.UpdatePaymentStatus(ticketID, "failed")
+		_ = h.paymentRepo.UpdateStatus(paymentID, "failed")
+		return
+	}
+
+	h.logger.Info("NWC payment succeeded", "ticket_id", ticketID, "preimage", preimage)
+	_ = h.paymentRepo.UpdatePreimage(paymentID, preimage)
+	_ = h.paymentRepo.UpdateStatus(paymentID, "paid")
+	_ = h.ticketRepo.UpdatePaymentStatus(ticketID, "paid")
 }
