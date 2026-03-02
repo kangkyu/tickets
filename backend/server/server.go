@@ -170,6 +170,7 @@ func (s *Server) setupRoutes() {
 	admin.HandleFunc("/node/balance", s.eventHandlers.HandleGetNodeBalance).Methods("GET", "OPTIONS")
 
 	// Admin payment routes
+	admin.HandleFunc("/payments", s.paymentHandlers.HandleGetAllPayments).Methods("GET", "OPTIONS")
 	admin.HandleFunc("/payments/pending", s.paymentHandlers.HandleGetPendingPayments).Methods("GET", "OPTIONS")
 	admin.HandleFunc("/payments/{id:[0-9]+}/retry", s.paymentHandlers.HandleRetryPayment).Methods("POST", "OPTIONS")
 }

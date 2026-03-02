@@ -106,8 +106,14 @@ const TicketPurchase = () => {
       })
 
       if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.message || 'Failed to create ticket purchase')
+        let errorMessage = 'Failed to create ticket purchase'
+        try {
+          const errorData = await response.json()
+          errorMessage = errorData.message || errorMessage
+        } catch {
+          errorMessage = `Server error (${response.status}). Please try again later.`
+        }
+        throw new Error(errorMessage)
       }
 
       const result = await response.json()

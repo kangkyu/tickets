@@ -115,6 +115,13 @@ func (r *paymentRepository) GetAvailablePaymentForEvent(eventID int) (*models.Pa
 	return nil, nil
 }
 
+func (r *paymentRepository) GetAllPayments() ([]models.Payment, error) {
+	payments := []models.Payment{}
+	query := `SELECT * FROM payments ORDER BY created_at DESC`
+	err := r.db.Select(&payments, query)
+	return payments, err
+}
+
 func (r *paymentRepository) GetOldestPendingByAmount(amountSats int64) (*models.Payment, error) {
 	payment := &models.Payment{}
 	query := `SELECT * FROM payments WHERE status = 'pending' AND amount_sats = $1 ORDER BY created_at ASC LIMIT 1`

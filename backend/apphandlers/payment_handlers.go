@@ -335,6 +335,48 @@ func (h *PaymentHandlers) HandleGetPendingPayments(w http.ResponseWriter, r *htt
 	})
 }
 
+// HandleGetAllPayments gets all payments (admin only)
+func (h *PaymentHandlers) HandleGetAllPayments(w http.ResponseWriter, r *http.Request) {
+	h.logger.Info("Fetching all payments")
+
+	payments, err := h.paymentRepo.GetAllPayments()
+	if err != nil {
+		h.logger.Error("Failed to fetch all payments", "error", err)
+		middleware.WriteError(w, http.StatusInternalServerError, "Failed to fetch payments")
+		return
+	}
+
+	// Enrich payments with ticket and event information
+	paymentDetails := make([]map[string]interface{}, 0, len(payments))
+	for _, payment := range payments {
+		ticket, err := h.ticketRepo.GetByID(payment.TicketID)
+		if err != nil {
+			h.logger.Warn("Failed to fetch ticket for payment", "payment_id", payment.ID, "ticket_id", payment.TicketID, "error", err)
+			continue
+		}
+
+		paymentDetail := map[string]interface{}{
+			"id":          payment.ID,
+			"invoice_id":  payment.InvoiceID,
+			"amount_sats": payment.Amount,
+			"status":      payment.Status,
+			"created_at":  payment.CreatedAt,
+			"ticket": map[string]interface{}{
+				"id":             ticket.ID,
+				"ticket_code":    ticket.TicketCode,
+				"payment_status": ticket.PaymentStatus,
+				"uma_address":    ticket.UMAAddress,
+			},
+		}
+		paymentDetails = append(paymentDetails, paymentDetail)
+	}
+
+	middleware.WriteJSON(w, http.StatusOK, models.SuccessResponse{
+		Message: "Payments retrieved successfully",
+		Data:    paymentDetails,
+	})
+}
+
 // HandleRetryPayment retries a failed payment (admin only)
 func (h *PaymentHandlers) HandleRetryPayment(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)

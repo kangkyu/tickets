@@ -7,7 +7,7 @@ const AdminDashboard = () => {
   const { user, token } = useAuth()
   const location = useLocation()
   const [events, setEvents] = useState([])
-  const [pendingPayments, setPendingPayments] = useState([])
+  const [allPayments, setAllPayments] = useState([])
   const [nodeBalance, setNodeBalance] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -41,16 +41,16 @@ const AdminDashboard = () => {
         setEvents(eventsData.data || [])
       }
 
-      // Fetch pending payments (admin only)
-      const paymentsResponse = await fetch(`${config.apiUrl}/api/admin/payments/pending`, {
+      // Fetch all payments (admin only)
+      const paymentsResponse = await fetch(`${config.apiUrl}/api/admin/payments`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
       })
-      
+
       if (paymentsResponse.ok) {
         const paymentsData = await paymentsResponse.json()
-        setPendingPayments(paymentsData.data || [])
+        setAllPayments(paymentsData.data || [])
       }
 
       // Fetch node balance (admin only)
@@ -143,8 +143,8 @@ const AdminDashboard = () => {
               </svg>
             </div>
             <div className="ml-4">
-              <h3 className="text-lg font-semibold">Pending Payments</h3>
-              <p className="text-2xl font-bold">{pendingPayments.length}</p>
+              <h3 className="text-lg font-semibold">Total Payments</h3>
+              <p className="text-2xl font-bold">{allPayments.length}</p>
             </div>
           </div>
         </div>
@@ -231,36 +231,53 @@ const AdminDashboard = () => {
         </div>
       </div>
 
-      {/* Pending Payments */}
-      {pendingPayments.length > 0 && (
-        <div className="mb-8">
-          <h2 className="text-2xl font-bold text-gray-900 mb-4">Pending Payments</h2>
-          <div className="bg-white shadow overflow-hidden sm:rounded-md">
-            <ul className="divide-y divide-gray-200">
-              {pendingPayments.map((payment) => (
-                <li key={payment.id} className="px-4 py-4 sm:px-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-gray-900">
-                        Payment ID: {payment.id}
-                      </p>
-                      <p className="text-sm text-gray-500">
-                        Amount: {payment.amount_sats} sats
-                      </p>
-                      <p className="text-sm text-gray-500">
-                        Invoice: {payment.invoice_id}
-                      </p>
-                    </div>
-                    <div className="text-sm text-gray-500">
+      {/* All Payments */}
+      <div className="mb-8">
+        <h2 className="text-2xl font-bold text-gray-900 mb-4">All Payments</h2>
+        <div className="bg-white shadow overflow-hidden sm:rounded-md">
+          {allPayments.length === 0 ? (
+            <div className="text-center py-8">
+              <p className="text-gray-500">No payments yet.</p>
+            </div>
+          ) : (
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ticket</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">UMA Address</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {allPayments.map((payment) => (
+                  <tr key={payment.id}>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{payment.id}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{payment.amount_sats} sats</td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                        payment.status === 'paid' ? 'bg-green-100 text-green-800' :
+                        payment.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                        payment.status === 'failed' ? 'bg-red-100 text-red-800' :
+                        'bg-gray-100 text-gray-800'
+                      }`}>
+                        {payment.status}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{payment.ticket?.ticket_code}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{payment.ticket?.uma_address}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {new Date(payment.created_at).toLocaleDateString()}
-                    </div>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
-      )}
+      </div>
     </div>
   )
 }
