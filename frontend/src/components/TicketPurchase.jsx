@@ -113,22 +113,28 @@ const TicketPurchase = () => {
       const result = await response.json()
       
       // Navigate to ticket list with success message
-      // Handle both paid events (with UMA Request) and free events
       const umaRequest = result.data.uma_request || null
-      const isFreeEvent = !result.data.payment_required
-      
-      navigate(`/tickets`, { 
-        state: { 
-          successMessage: isFreeEvent 
-            ? 'Free ticket created successfully!' 
-            : 'Ticket purchase initiated! Please complete your payment.',
+      const paymentRequired = result.data.payment_required
+
+      let successMessage
+      if (!paymentRequired && result.data.event.price_sats > 0) {
+        successMessage = 'Ticket purchased and paid successfully!'
+      } else if (!paymentRequired) {
+        successMessage = 'Free ticket created successfully!'
+      } else {
+        successMessage = 'Ticket purchase initiated! Please complete your payment.'
+      }
+
+      navigate(`/tickets`, {
+        state: {
+          successMessage,
           ticketId: result.data.ticket.id,
           invoiceId: umaRequest?.invoice_id || null,
           bolt11: umaRequest?.bolt11 || null,
           amountSats: umaRequest?.amount_sats || 0,
           umaAddress: data.umaAddress,
           ticketData: data,
-          isFreeEvent: isFreeEvent
+          isFreeEvent: !paymentRequired
         }
       })
       
