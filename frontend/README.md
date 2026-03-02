@@ -87,9 +87,9 @@ frontend/
    ```
 
 3. **Environment Configuration**
-   Create a `.env` file in the root directory:
+   Create a `.env` file in the frontend directory:
    ```env
-   VITE_API_URL=http://localhost:8080
+   VITE_API_BASE_URL=http://localhost:8080
    ```
 
 4. **Start development server**
@@ -100,6 +100,12 @@ frontend/
 5. **Build for production**
    ```bash
    npm run build
+   ```
+
+6. **Deploy to S3 + CloudFront**
+   ```bash
+   aws s3 sync dist/ s3://uma-tickets-staging-frontend --delete
+   aws cloudfront create-invalidation --distribution-id <DISTRIBUTION_ID> --paths "/*"
    ```
 
 ## 🔧 Configuration

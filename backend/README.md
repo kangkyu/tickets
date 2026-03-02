@@ -250,8 +250,7 @@ go test ./...
 
 ### AWS Staging
 - Build and push to ECR
-- Update existing Terraform infrastructure in parent directory
-- ECS Fargate with Application Load Balancer
+- ECS Fargate behind ALB, fronted by CloudFront
 - RDS PostgreSQL in private subnets
 - CloudWatch logging and monitoring
 
