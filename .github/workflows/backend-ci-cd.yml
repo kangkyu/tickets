@@ -14,6 +14,8 @@ env:
   ECR_REPOSITORY: uma-tickets-staging/backend
   ECS_CLUSTER: uma-tickets-staging-cluster
   ECS_SERVICE: uma-tickets-staging-backend
+  S3_FRONTEND_BUCKET: uma-tickets-staging-frontend
+  CLOUDFRONT_DISTRIBUTION_ID: ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }}
 
 jobs:
   test:
