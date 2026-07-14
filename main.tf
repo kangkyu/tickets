@@ -555,7 +555,8 @@ resource "aws_lb_listener" "backend" {
 
 # ECR Repository
 resource "aws_ecr_repository" "backend" {
-  name = "${var.app_name}/backend"
+  name         = "${var.app_name}/backend"
+  force_delete = true
 
   image_scanning_configuration {
     scan_on_push = true
@@ -753,7 +754,8 @@ resource "random_password" "jwt_secret" {
 
 # S3 bucket for frontend static files
 resource "aws_s3_bucket" "frontend" {
-  bucket = "${var.app_name}-frontend"
+  bucket        = "${var.app_name}-frontend"
+  force_destroy = true
 
   tags = {
     Name        = "${var.app_name}-frontend"
